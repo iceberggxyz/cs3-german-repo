@@ -1,0 +1,8 @@
+{
+  "name": "IceBERGG German Streaming Repository",
+  "description": "Eigenständiges CloudStream-3-Repository für den deutschen Markt: AniWorld (Animes), s.to/SerienStream (Serien), Kinox (Filme/Serien), Burning Series (Serien), KKiste, StreamCloud und MegaKino.",
+  "manifestVersion": 1,
+  "pluginLists": [
+    "https://raw.githubusercontent.com/iceberggxyz/cs3-german-repo/builds/plugins.json"
+  ]
+}
