@@ -22,6 +22,9 @@ buildscript {
     dependencies {
         classpath("com.android.tools.build:gradle:8.7.3")
         // CloudStream-Gradle-Plugin: baut aus jedem Modul ein .cs3-Plugin.
+        // Hinweis: Das Plugin ist nur als JitPack-SNAPSHOT verfügbar; ältere
+        // Commit-Builds stellen die `cloudstream`-Configuration nicht bereit.
+        // Gepinnt sind deshalb die Laufzeit-Abhängigkeiten in `dependencies`.
         classpath("com.github.recloudstream:gradle:-SNAPSHOT")
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.3.0")
     }

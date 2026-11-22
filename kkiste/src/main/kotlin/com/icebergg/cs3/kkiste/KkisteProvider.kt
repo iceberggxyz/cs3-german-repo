@@ -1,15 +1,19 @@
 package com.icebergg.cs3.kkiste
 
 import com.lagradost.cloudstream3.Episode
+import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.MainAPI
+import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.TvType
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.fixUrl
 import com.lagradost.cloudstream3.fixUrlNull
+import com.lagradost.cloudstream3.mainPageOf
 import com.lagradost.cloudstream3.newEpisode
+import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.newMovieSearchResponse
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
@@ -34,6 +38,9 @@ open class KkisteProvider : MainAPI() {
 
         /** Regex: Staffelnummer aus dem Titel. */
         val REGEX_STAFFEL = Regex("Staffel[\\s-]*(\\d+)", RegexOption.IGNORE_CASE)
+
+        /** Detailseiten haben immer eine numerische ID: `/26355-titel....html`. */
+        val DETAIL_REGEX = Regex(""".*/\d+-.*\.html$""")
     }
 
     override var name = "KKiste"
@@ -43,7 +50,70 @@ open class KkisteProvider : MainAPI() {
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
 
     override var lang = "de"
-    override val hasMainPage = false
+    override val hasMainPage = true
+
+    override val mainPage = mainPageOf(
+        "/" to "Neu auf KKiste",
+    )
+
+    // ------------------------------------------------------------------
+    // Startseite
+    // ------------------------------------------------------------------
+
+    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+        val url = if (page <= 1) "$mainUrl/" else "$mainUrl/page/$page/"
+        val doc = runCatching { app.get(url, referer = "$mainUrl/").document }.getOrNull()
+            ?: return newHomePageResponse(request.name, emptyList())
+        return newHomePageResponse(request.name, parseListing(doc))
+    }
+
+    /**
+     * Wertet eine KKiste-Listenseite (Startseite oder Suchergebnis) aus.
+     * Bevorzugt die `<article>`-Karten, fällt bei fehlender Struktur auf alle
+     * Detail-Links zurück.
+     */
+    private fun parseListing(doc: Document): List<SearchResponse> {
+        val out = mutableListOf<SearchResponse>()
+        val seen = HashSet<String>()
+
+        fun add(rawHref: String, rawTitle: String, poster: String?) {
+            if (rawHref.isBlank()) return
+            val url = fixUrl(rawHref)
+            // Nur echte Detailseiten (mit numerischer ID) übernehmen.
+            if (!DETAIL_REGEX.matches(url)) return
+            if (!seen.add(url)) return
+            val title = rawTitle.trim()
+            if (title.isEmpty()) return
+
+            out.add(
+                if (REGEX_STAFFEL.containsMatchIn(title)) {
+                    newTvSeriesSearchResponse(title, url, TvType.TvSeries) { this.posterUrl = poster }
+                } else {
+                    newMovieSearchResponse(title, url, TvType.Movie) { this.posterUrl = poster }
+                }
+            )
+        }
+
+        val cards = doc.select("article")
+        if (cards.isNotEmpty()) {
+            for (card in cards) {
+                val link = card.selectFirst("h2 a[href], h3 a[href]") ?: continue
+                val title = link.text().trim()
+                    .ifEmpty { card.selectFirst("h2, h3")?.text()?.trim().orEmpty() }
+                val img = card.selectFirst("img")
+                val poster = fixUrlNull(img?.attr("src") ?: img?.attr("data-src"))
+                add(link.attr("href"), title, poster)
+            }
+        } else {
+            for (a in doc.select("a[href]")) {
+                val img = a.selectFirst("img")
+                val poster = fixUrlNull(img?.attr("src") ?: img?.attr("data-src"))
+                val title = a.attr("title").trim().ifEmpty { a.text().trim() }
+                add(a.attr("href"), title, poster)
+            }
+        }
+        return out
+    }
 
     // ------------------------------------------------------------------
     // Suche
@@ -51,46 +121,19 @@ open class KkisteProvider : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         // KKiste nutzt ein POST-Formular (do/subaction/story) auf die Startseite.
-        val doc = app.post(
-            "$mainUrl/",
-            data = mapOf(
-                "do" to "search",
-                "subaction" to "search",
-                "story" to query,
-            ),
-            referer = "$mainUrl/",
-        ).document
+        val doc = runCatching {
+            app.post(
+                "$mainUrl/",
+                data = mapOf(
+                    "do" to "search",
+                    "subaction" to "search",
+                    "story" to query,
+                ),
+                referer = "$mainUrl/",
+            ).document
+        }.getOrNull() ?: return emptyList()
 
-        val results = mutableListOf<SearchResponse>()
-        val seen = HashSet<String>()
-
-        for (card in doc.select("article")) {
-            val link = card.selectFirst("h2 a[href], h3 a[href]") ?: continue
-            val href = link.attr("href")
-            if (href.isBlank()) continue
-
-            val url = fixUrl(href)
-            // Nur echte Detailseiten (mit numerischer ID) übernehmen.
-            if (!url.matches(Regex(".*/\\d+-.*\\.html$"))) continue
-            if (!seen.add(url)) continue
-
-            val title = link.text().trim()
-                .ifEmpty { card.selectFirst("h2, h3")?.text()?.trim().orEmpty() }
-            if (title.isEmpty()) continue
-
-            val img = card.selectFirst("img")
-            val poster = fixUrlNull(img?.attr("src") ?: img?.attr("data-src"))
-            val isSeries = REGEX_STAFFEL.containsMatchIn(title)
-
-            results.add(
-                if (isSeries) {
-                    newTvSeriesSearchResponse(title, url, TvType.TvSeries) { this.posterUrl = poster }
-                } else {
-                    newMovieSearchResponse(title, url, TvType.Movie) { this.posterUrl = poster }
-                }
-            )
-        }
-        return results
+        return parseListing(doc)
     }
 
     // ------------------------------------------------------------------

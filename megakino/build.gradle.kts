@@ -1,5 +1,5 @@
 // Versionsnummer des Plugins als Ganzzahl.
-version = 1
+version = 2
 
 cloudstream {
     language = "de"
@@ -13,7 +13,8 @@ cloudstream {
      * 2: Slow
      * 3: Nur Beta
      */
-    status = 1
+    // Down: megakino.co antwortet dauerhaft mit HTTP 403.
+    status = 0
     tvTypes = listOf("Movie", "TvSeries", "Documentary")
 
     iconUrl = "https://www.google.com/s2/favicons?domain=https://megakino4.to&sz=%size%"
