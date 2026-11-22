@@ -173,17 +173,11 @@ open class FilmPalast : MainAPI() {
         val doc = runCatching { app.get(data, referer = "$mainUrl/").document }.getOrNull()
             ?: return false
 
-        // Hostername und Play-Link stehen in getrennten <li>, aber in gleicher Reihenfolge.
-        val names = doc.select("ul.currentStreamLinks li.hostBg p.hostName").map { it.text().trim() }
-        val links = doc.select("ul.currentStreamLinks li.streamPlayBtn a.iconPlay")
-            .map { it.attr("href").trim() }
-            .filter { it.startsWith("http") }
-
-        println("[Filmpalast] page=$data hoster=${links.size}")
+        val streams = collectStreams(doc)
+        println("[Filmpalast] page=$data hoster=${streams.size}")
 
         var found = false
-        links.forEachIndexed { index, link ->
-            val label = names.getOrNull(index)?.ifBlank { null } ?: hostOf(link)
+        for ((label, link) in streams) {
             val ok = runCatching {
                 loadExtractor(link, data, subtitleCallback) { callback(it) }
             }.getOrDefault(false)
@@ -191,6 +185,50 @@ open class FilmPalast : MainAPI() {
             if (ok) found = true
         }
         return found
+    }
+
+    /**
+     * Liest die Hoster aus der Detailseite.
+     *
+     * Jeder Hoster hat eine eigene `<ul class="currentStreamLinks">` mit
+     * `p.hostName` und genau einem Play-Button. Der Button trägt je nach Hoster
+     * `data-player-url` (z. B. Firestream, wird per JS in den iframe gesetzt)
+     * **oder** `href` (z. B. VOE/VIDARA). Beides muss gelesen werden.
+     */
+    private fun collectStreams(doc: Document): List<Pair<String, String>> {
+        val out = mutableListOf<Pair<String, String>>()
+        for (ul in doc.select("ul.currentStreamLinks")) {
+            val name = ul.selectFirst("p.hostName")?.text()?.trim().orEmpty()
+            val btn = ul.selectFirst("a.iconPlay") ?: continue
+            val raw = btn.attr("data-player-url").trim()
+                .ifBlank { btn.attr("href").trim() }
+            if (raw.isBlank() || !raw.startsWith("http")) continue
+            val url = normalizePlayerUrl(raw)
+            out.add((name.ifBlank { hostOf(url) }) to url)
+        }
+        // Fallback, falls die Seitenstruktur einmal abweicht.
+        if (out.isEmpty()) {
+            for (btn in doc.select("a.iconPlay")) {
+                val raw = btn.attr("data-player-url").trim()
+                    .ifBlank { btn.attr("href").trim() }
+                if (raw.isBlank() || !raw.startsWith("http")) continue
+                val url = normalizePlayerUrl(raw)
+                out.add(hostOf(url) to url)
+            }
+        }
+        return out.distinctBy { it.second }
+    }
+
+    /**
+     * Filmpalast verlinkt VOE im neuen Kurzformat `voe.sx/{id}`.
+     * CloudStreams Voe-Extractor erwartet `voe.sx/e/{id}`.
+     */
+    private fun normalizePlayerUrl(url: String): String {
+        val voeRegex = Regex("""^(https?://(?:www\.)?voe\.(?:sx|com|to))/([A-Za-z0-9]{6,})$""")
+        voeRegex.find(url)?.let { m ->
+            return "${m.groupValues[1]}/e/${m.groupValues[2]}"
+        }
+        return url
     }
 
     // ------------------------------------------------------------------
