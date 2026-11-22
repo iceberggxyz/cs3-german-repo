@@ -3,7 +3,7 @@ version = 7
 
 cloudstream {
     language = "de"
-    description = "Serien online ansehen und streamen (s.to / SerienStream)"
+    description = "Serien von s.to / SerienStream (benoetigt DNS over HTTPS)"
     authors = listOf("IceBERGG")
 
     /**

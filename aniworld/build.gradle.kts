@@ -3,7 +3,7 @@ version = 1
 
 cloudstream {
     language = "de"
-    description = "Animes online ansehen und streamen"
+    description = "Animes und Serien von AniWorld"
     authors = listOf("IceBERGG")
 
     /**

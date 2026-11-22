@@ -3,7 +3,7 @@ version = 3
 
 cloudstream {
     language = "de"
-    description = "Serien auf Burning Series streamen"
+    description = "Burning Series - derzeit nicht verfügbar (Cloudflare/AJAX)"
     authors = listOf("IceBERGG")
 
     /**

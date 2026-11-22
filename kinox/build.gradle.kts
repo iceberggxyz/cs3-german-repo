@@ -3,7 +3,7 @@ version = 3
 
 cloudstream {
     language = "de"
-    description = "Filme und Serien auf Kinox streamen"
+    description = "Kinox - derzeit keine erreichbare Domain"
     authors = listOf("IceBERGG")
 
     /**

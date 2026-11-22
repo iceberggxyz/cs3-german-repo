@@ -19,7 +19,6 @@ import com.lagradost.cloudstream3.newMovieSearchResponse
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.newTvSeriesSearchResponse
 import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.loadExtractor
 import org.jsoup.nodes.Document
 import java.net.URLEncoder
 
@@ -178,9 +177,9 @@ open class FilmPalast : MainAPI() {
 
         var found = false
         for ((label, link) in streams) {
-            val ok = runCatching {
-                loadExtractor(link, data, subtitleCallback) { callback(it) }
-            }.getOrDefault(false)
+            // HosterResolver löst VOE-Kurzlinks, Vorschalt-Seiten (Vidara) und
+            // direkte Hoster einheitlich auf.
+            val ok = HosterResolver.resolve(link, data, subtitleCallback) { callback(it) }
             println("[Filmpalast] hoster=$label ok=$ok url=$link")
             if (ok) found = true
         }
@@ -203,7 +202,7 @@ open class FilmPalast : MainAPI() {
             val raw = btn.attr("data-player-url").trim()
                 .ifBlank { btn.attr("href").trim() }
             if (raw.isBlank() || !raw.startsWith("http")) continue
-            val url = normalizePlayerUrl(raw)
+            val url = HosterResolver.normalize(raw)
             out.add((name.ifBlank { hostOf(url) }) to url)
         }
         // Fallback, falls die Seitenstruktur einmal abweicht.
@@ -212,24 +211,13 @@ open class FilmPalast : MainAPI() {
                 val raw = btn.attr("data-player-url").trim()
                     .ifBlank { btn.attr("href").trim() }
                 if (raw.isBlank() || !raw.startsWith("http")) continue
-                val url = normalizePlayerUrl(raw)
+                val url = HosterResolver.normalize(raw)
                 out.add(hostOf(url) to url)
             }
         }
         return out.distinctBy { it.second }
     }
 
-    /**
-     * Filmpalast verlinkt VOE im neuen Kurzformat `voe.sx/{id}`.
-     * CloudStreams Voe-Extractor erwartet `voe.sx/e/{id}`.
-     */
-    private fun normalizePlayerUrl(url: String): String {
-        val voeRegex = Regex("""^(https?://(?:www\.)?voe\.(?:sx|com|to))/([A-Za-z0-9]{6,})$""")
-        voeRegex.find(url)?.let { m ->
-            return "${m.groupValues[1]}/e/${m.groupValues[2]}"
-        }
-        return url
-    }
 
     // ------------------------------------------------------------------
     // Hilfsfunktionen

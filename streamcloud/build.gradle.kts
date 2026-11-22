@@ -3,7 +3,7 @@ version = 9
 
 cloudstream {
     language = "de"
-    description = "Filme und Serien online kostenlos ansehen (StreamCloud)"
+    description = "Filme und Serien von StreamCloud"
     authors = listOf("IceBERGG")
 
     /**

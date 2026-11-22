@@ -3,7 +3,7 @@ version = 3
 
 cloudstream {
     language = "de"
-    description = "Kostenlos Filme und Serien auf Deutsch anschauen"
+    description = "MegaKino - Player derzeit nicht aufloesbar (gxplayer)"
     authors = listOf("IceBERGG")
 
     /**

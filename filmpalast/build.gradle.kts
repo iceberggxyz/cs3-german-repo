@@ -1,9 +1,9 @@
 // Versionsnummer des Plugins als Ganzzahl.
-version = 3
+version = 4
 
 cloudstream {
     language = "de"
-    description = "Filme und Serien auf Filmpalast streamen"
+    description = "Filme und Serien von Filmpalast (benoetigt DNS over HTTPS)"
     authors = listOf("IceBERGG")
 
     /**

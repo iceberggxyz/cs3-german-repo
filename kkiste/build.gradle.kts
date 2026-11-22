@@ -3,7 +3,7 @@ version = 4
 
 cloudstream {
     language = "de"
-    description = "Filme und Serien auf KKiste streamen"
+    description = "Filme und Serien von KKiste"
     authors = listOf("IceBERGG")
 
     /**
