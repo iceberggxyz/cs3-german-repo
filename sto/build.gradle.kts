@@ -1,5 +1,5 @@
 // Versionsnummer des Plugins als Ganzzahl.
-version = 1
+version = 2
 
 cloudstream {
     language = "de"
@@ -16,5 +16,5 @@ cloudstream {
     status = 1
     tvTypes = listOf("Series")
 
-    iconUrl = "https://www.google.com/s2/favicons?domain=https://serienstream.to&sz=%size%"
+    iconUrl = "https://www.google.com/s2/favicons?domain=https://serienstream.si&sz=%size%"
 }

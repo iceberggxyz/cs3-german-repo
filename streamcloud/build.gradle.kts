@@ -1,9 +1,9 @@
 // Versionsnummer des Plugins als Ganzzahl.
-version = 3
+version = 4
 
 cloudstream {
     language = "de"
-    description = "Filme und Serien online kostenlos ansehen (HDFilme)"
+    description = "Filme und Serien online kostenlos ansehen (StreamCloud)"
     authors = listOf("IceBERGG")
 
     /**
@@ -16,5 +16,5 @@ cloudstream {
     status = 1
     tvTypes = listOf("Movie", "TvSeries")
 
-    iconUrl = "https://hdfilme.my/templates/hdfilme/images/favicon-%size%x%size%.png"
+    iconUrl = "https://www.google.com/s2/favicons?domain=https://streamcloud.date&sz=%size%"
 }

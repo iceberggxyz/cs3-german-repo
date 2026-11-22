@@ -17,7 +17,6 @@ import com.lagradost.cloudstream3.newTvSeriesSearchResponse
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.loadExtractor
 import org.jsoup.nodes.Document
-import java.net.URLEncoder
 
 /**
  * CloudStream-Provider für **KKiste** (Filme & Serien, DataLife Engine).
@@ -32,9 +31,6 @@ open class KkisteProvider : MainAPI() {
     companion object {
         /** Aktuelle KKiste-Domain (bei Wechsel hier aktualisieren). */
         const val BASE_URL = "https://kkiste-io.ink"
-
-        /** DLE-Suchpfad. */
-        const val SEARCH_PATH = "/index.php?do=search&subaction=search&story="
 
         /** Regex: Staffelnummer aus dem Titel. */
         val REGEX_STAFFEL = Regex("Staffel[\\s-]*(\\d+)", RegexOption.IGNORE_CASE)
@@ -54,8 +50,16 @@ open class KkisteProvider : MainAPI() {
     // ------------------------------------------------------------------
 
     override suspend fun search(query: String): List<SearchResponse> {
-        val encoded = URLEncoder.encode(query, "UTF-8")
-        val doc = app.get("$mainUrl$SEARCH_PATH$encoded", referer = "$mainUrl/").document
+        // KKiste nutzt ein POST-Formular (do/subaction/story) auf die Startseite.
+        val doc = app.post(
+            "$mainUrl/",
+            data = mapOf(
+                "do" to "search",
+                "subaction" to "search",
+                "story" to query,
+            ),
+            referer = "$mainUrl/",
+        ).document
 
         val results = mutableListOf<SearchResponse>()
         val seen = HashSet<String>()
