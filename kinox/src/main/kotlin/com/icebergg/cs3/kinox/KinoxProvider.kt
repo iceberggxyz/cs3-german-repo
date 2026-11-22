@@ -35,6 +35,20 @@ open class KinoxProvider : MainAPI() {
         /** Aktuelle Kinox-Domain (bitte bei Domainwechsel aktualisieren). */
         const val BASE_URL = "https://kinox.to"
 
+        /**
+         * Getestete Mirrors (Stand 22.11.2026). Aktuell ist KEINE Domain
+         * erreichbar: `.to`/`.ch`/`.nu`/`.bz`/`.lol`/`.mx`/`.pm`/`.moe` lösen
+         * nicht auf, `.si`/`.cloud` sind Parkseiten, `.am` liefert HTTP 436,
+         * `.tv`/`.io`/`.ws` brechen die Verbindung ab. Sobald ein Mirror
+         * gefunden wird, genügt ein Eintrag hier.
+         */
+        private val MIRRORS = listOf(
+            "https://kinox.to",
+        )
+
+        /** Erkennungsmerkmal einer echten Kinox-Seite. */
+        private const val MIRROR_MARKER = "/Stream/"
+
         /** Suchpfad. */
         const val SEARCH_PATH = "/Search.html?q="
 
@@ -54,11 +68,31 @@ open class KinoxProvider : MainAPI() {
     override var lang = "de"
     override val hasMainPage = false
 
+    private var baseResolved = false
+
+    /** Probiert die Mirrors durch und setzt [mainUrl] auf die erste echte Seite. */
+    private suspend fun ensureBase(): String {
+        if (baseResolved) return mainUrl
+        for (mirror in MIRRORS) {
+            val html = runCatching { app.get("$mirror/").text }.getOrNull() ?: continue
+            if (html.contains(MIRROR_MARKER)) {
+                mainUrl = mirror
+                baseResolved = true
+                println("[Kinox] base=$mirror")
+                return mainUrl
+            }
+        }
+        baseResolved = true
+        println("[Kinox] no working mirror, fallback=$mainUrl")
+        return mainUrl
+    }
+
     // ------------------------------------------------------------------
     // Suche
     // ------------------------------------------------------------------
 
     override suspend fun search(query: String): List<SearchResponse> {
+        ensureBase()
         val encoded = URLEncoder.encode(query, "UTF-8")
         val doc = app.get("$mainUrl$SEARCH_PATH$encoded", referer = "$mainUrl/").document
 

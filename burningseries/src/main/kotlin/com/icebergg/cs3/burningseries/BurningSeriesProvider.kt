@@ -33,7 +33,23 @@ open class BurningSeriesProvider : MainAPI() {
 
     companion object {
         /** Aktuelle Burning-Series-Domain (bitte bei Domainwechsel aktualisieren). */
-        const val BASE_URL = "https://burning-series.co"
+        const val BASE_URL = "https://burning-series.io"
+
+        /**
+         * Getestete Mirrors (Stand 22.11.2026):
+         *  - `burning-series.io`  → echte Seite (HTTP 200)
+         *  - `burning-series.org` → Portal, leitet auf `.io` weiter
+         *  - `burningseries.to`   → Portal, leitet auf `.io` weiter
+         *  - `burning-series.co`  → Cloudflare 526 (ungültiges Origin-Zertifikat)
+         */
+        private val MIRRORS = listOf(
+            "https://burning-series.io",
+            "https://burning-series.org",
+            "https://burningseries.to",
+        )
+
+        /** Erkennungsmerkmal einer echten Burning-Series-Seite. */
+        private const val MIRROR_MARKER = "Burning Series"
 
         /** Suchpfad. */
         const val SEARCH_PATH = "/Search.html?q="
@@ -54,11 +70,35 @@ open class BurningSeriesProvider : MainAPI() {
     override var lang = "de"
     override val hasMainPage = false
 
+    private var baseResolved = false
+
+    /**
+     * Probiert die Mirrors durch. Wichtig: `.org` und `burningseries.to` sind
+     * nur Portale, die auf `.io` verlinken – die Inhaltsprüfung erkennt das
+     * daran, dass der Marker fehlt, und nimmt die nächste Domain.
+     */
+    private suspend fun ensureBase(): String {
+        if (baseResolved) return mainUrl
+        for (mirror in MIRRORS) {
+            val html = runCatching { app.get("$mirror/").text }.getOrNull() ?: continue
+            if (html.contains(MIRROR_MARKER)) {
+                mainUrl = mirror
+                baseResolved = true
+                println("[BurningSeries] base=$mirror")
+                return mainUrl
+            }
+        }
+        baseResolved = true
+        println("[BurningSeries] no working mirror, fallback=$mainUrl")
+        return mainUrl
+    }
+
     // ------------------------------------------------------------------
     // Suche
     // ------------------------------------------------------------------
 
     override suspend fun search(query: String): List<SearchResponse> {
+        ensureBase()
         val encoded = URLEncoder.encode(query, "UTF-8")
         val doc = app.get("$mainUrl$SEARCH_PATH$encoded", referer = "$mainUrl/").document
 

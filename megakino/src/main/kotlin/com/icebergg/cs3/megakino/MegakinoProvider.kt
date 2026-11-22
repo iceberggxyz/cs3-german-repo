@@ -33,8 +33,37 @@ import java.net.URI
  * deshalb über einen Redirect auf [mainUrl] ermittelt ([getActualMainUrlAndCookies]).
  */
 open class Megakino : MainAPI() {
+    /**
+     * Getestete Mirrors (Stand 22.11.2026):
+     *  - `megakino.vip` → echte Seite (HTTP 200, WordPress mit `/filme/`)
+     *  - `megakino.foo` → gleiche Seite (Kanonical der `.vip`-Domain)
+     *  - `megakino4.to` → nicht mehr auflösbar (`megakino.co`/`.to` sind Parkseiten)
+     */
+    private val MIRRORS = listOf(
+        "https://megakino.vip",
+        "https://megakino.foo",
+    )
+
+    private var resolvedBase: String? = null
+
+    /** Liefert die erste Domain, die tatsächlich Filme ausliefert. */
+    private suspend fun resolveBase(): String {
+        resolvedBase?.let { return it }
+        for (mirror in MIRRORS) {
+            val html = runCatching { app.get("$mirror/filme").text }.getOrNull() ?: continue
+            if (html.contains("/filme/")) {
+                resolvedBase = mirror
+                println("[MegaKino] base=$mirror")
+                return mirror
+            }
+        }
+        resolvedBase = mainUrl
+        println("[MegaKino] no working mirror, fallback=$mainUrl")
+        return mainUrl
+    }
+
     @Deprecated("Nicht direkt verwenden – stattdessen getActualMainUrlAndCookies() nutzen.")
-    override var mainUrl = "https://megakino4.to"
+    override var mainUrl = "https://megakino.vip"
     override var name = "MegaKino"
     override val hasMainPage = true
     override var lang = "de"
@@ -57,7 +86,7 @@ open class Megakino : MainAPI() {
     private suspend fun getActualMainUrlAndCookies(): Pair<Map<String, String>, String> {
         urlCookieCache?.let { return it }
 
-        val actualMainUrl = app.get(mainUrl).url.trimEnd('/')
+        val actualMainUrl = app.get(resolveBase()).url.trimEnd('/')
         val cookies = app.get("$actualMainUrl/index.php?yg=token").cookies
 
         return cookies to actualMainUrl
