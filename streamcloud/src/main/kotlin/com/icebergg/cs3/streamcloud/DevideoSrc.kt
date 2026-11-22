@@ -5,21 +5,22 @@ import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.loadExtractor
+import org.jsoup.Jsoup
 
 /**
  * Löst einen `devideosrc.co`-Player auf.
  *
- * Ablauf:
- *  1. Player-Seite laden und das signierte `token` sowie `type`/`id` aus dem
- *     Inline-Skript (`JSON.stringify({...})`) lesen.
- *  2. `POST /api/embed-links` mit `{ type, id, [season], [episode], token }`.
- *  3. Die zurückgegebenen Hoster-Embeds über die CloudStream-Extraktoren auflösen.
+ * Es gibt zwei Player-Varianten:
+ *  - **Film**: `POST /api/embed-links` mit `{ type, id, token }`; das Token steht
+ *    im Inline-Skript (`JSON.stringify({...})`).
+ *  - **Serie**: `POST /api/resolve` mit `{ type, id, season, episode, mode, token }`;
+ *    die Werte stehen in den `data-*`-Attributen des `<main>`-Elements.
  */
 object DevideoSrc {
 
-    private const val API = "https://devideosrc.co/api/embed-links"
+    private const val HOST = "https://devideosrc.co"
+    private const val EMBED_API = "$HOST/api/embed-links"
 
-    /** Isoliert das an `JSON.stringify(...)` übergebene Objekt. */
     private val bodyRegex = Regex("""JSON\.stringify\(\s*(\{.*?\})\s*\)""", RegexOption.DOT_MATCHES_ALL)
     private val typeRegex = Regex("""type\s*:\s*['"]([^'"]+)['"]""")
     private val idRegex = Regex("""id\s*:\s*['"]([^'"]+)['"]""")
@@ -35,35 +36,45 @@ object DevideoSrc {
         if (url.isBlank()) return false
 
         val page = runCatching { app.get(url).text }.getOrNull() ?: return false
+        val doc = runCatching { Jsoup.parse(page, url) }.getOrNull()
 
-        // Nur den relevanten JSON.stringify-Block betrachten, falls vorhanden.
-        val block = bodyRegex.find(page)?.groupValues?.get(1) ?: page
+        // Serien-Player erkennen (data-resolve-token am <main>).
+        val main = doc?.selectFirst("main[data-resolve-token]")
 
-        val type = typeRegex.find(block)?.groupValues?.get(1) ?: return false
-        val id = idRegex.find(block)?.groupValues?.get(1) ?: return false
-        val token = tokenRegex.find(block)?.groupValues?.get(1) ?: return false
-
-        val body = mutableMapOf<String, Any>(
-            "type" to type,
-            "id" to id,
-            "token" to token,
-        )
-        seasonRegex.find(block)?.groupValues?.get(1)?.toIntOrNull()?.let { body["season"] = it }
-        episodeRegex.find(block)?.groupValues?.get(1)?.toIntOrNull()?.let { body["episode"] = it }
-
-        val response = runCatching {
-            app.post(
-                API,
-                json = body,
-                referer = url,
-                headers = mapOf(
-                    "origin" to "https://devideosrc.co",
-                    "x-requested-with" to "XMLHttpRequest",
-                ),
+        val responseText = if (main != null) {
+            val endpoint = main.attr("data-resolve-endpoint").ifBlank { "/api/resolve" }
+            val body = mutableMapOf<String, Any>(
+                "type" to main.attr("data-type").ifBlank { "tv" },
+                "id" to main.attr("data-id"),
+                "season" to main.attr("data-season"),
+                "episode" to main.attr("data-episode"),
+                "mode" to main.attr("data-mode").ifBlank { "custom" },
+                "token" to main.attr("data-resolve-token"),
             )
-        }.getOrNull() ?: return false
+            runCatching {
+                app.post("$HOST$endpoint", json = body, referer = url, headers = apiHeaders()).text
+            }.getOrNull()
+        } else {
+            // Film-Player: Token aus dem Inline-Skript lesen.
+            val block = bodyRegex.find(page)?.groupValues?.get(1) ?: page
+            val type = typeRegex.find(block)?.groupValues?.get(1) ?: return false
+            val id = idRegex.find(block)?.groupValues?.get(1) ?: return false
+            val token = tokenRegex.find(block)?.groupValues?.get(1) ?: return false
 
-        val parsed = runCatching { parseJson<EmbedResponse>(response.text) }.getOrNull()
+            val body = mutableMapOf<String, Any>(
+                "type" to type,
+                "id" to id,
+                "token" to token,
+            )
+            seasonRegex.find(block)?.groupValues?.get(1)?.toIntOrNull()?.let { body["season"] = it }
+            episodeRegex.find(block)?.groupValues?.get(1)?.toIntOrNull()?.let { body["episode"] = it }
+
+            runCatching {
+                app.post(EMBED_API, json = body, referer = url, headers = apiHeaders()).text
+            }.getOrNull()
+        } ?: return false
+
+        val parsed = runCatching { parseJson<EmbedResponse>(responseText) }.getOrNull()
             ?: return false
 
         val sources = parsed.sources ?: return false
@@ -75,6 +86,11 @@ object DevideoSrc {
         }
         return found
     }
+
+    private fun apiHeaders() = mapOf(
+        "origin" to HOST,
+        "x-requested-with" to "XMLHttpRequest",
+    )
 
     data class EmbedResponse(
         val ok: Boolean = false,

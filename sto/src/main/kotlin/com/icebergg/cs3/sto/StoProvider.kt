@@ -53,10 +53,16 @@ open class StoProvider : MainAPI() {
             if (!seriesRootRegex.matches(url)) continue
             if (!seen.add(url)) continue
 
-            val title = a.text().trim()
+            // `title` liefert den sauberen Namen; der Linktext enthält Rating/Tags.
+            val title = a.attr("title").trim().ifEmpty { a.text().trim() }
             if (title.isEmpty()) continue
 
-            results.add(newTvSeriesSearchResponse(title, url, TvType.TvSeries))
+            val img = a.selectFirst("img")
+            val poster = img?.let { fixUrlNull(it.attr("data-src").ifBlank { it.attr("src") }) }
+
+            results.add(newTvSeriesSearchResponse(title, url, TvType.TvSeries) {
+                this.posterUrl = poster
+            })
         }
         return results
     }

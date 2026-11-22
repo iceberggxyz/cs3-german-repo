@@ -55,14 +55,22 @@ open class StreamCloudProvider : MainAPI() {
             if (!detailRegex.matches(url)) continue
             if (!seen.add(url)) continue
 
-            val title = a.text().trim()
+            // `title` liefert den sauberen Namen; der Linktext enthält Rating/Serie-Tag.
+            val title = a.attr("title").trim().ifEmpty { a.text().trim() }
             if (title.isEmpty()) continue
+
+            val img = a.selectFirst("img")
+            val poster = img?.let { fixUrlNull(it.attr("data-src").ifBlank { it.attr("src") }) }
 
             results.add(
                 if (url.contains("/serie/")) {
-                    newTvSeriesSearchResponse(title, url, TvType.TvSeries)
+                    newTvSeriesSearchResponse(title, url, TvType.TvSeries) {
+                        this.posterUrl = poster
+                    }
                 } else {
-                    newMovieSearchResponse(title, url, TvType.Movie)
+                    newMovieSearchResponse(title, url, TvType.Movie) {
+                        this.posterUrl = poster
+                    }
                 }
             )
         }
