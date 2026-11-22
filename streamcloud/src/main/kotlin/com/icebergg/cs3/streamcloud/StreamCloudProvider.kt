@@ -147,7 +147,18 @@ open class StreamCloudProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit,
     ): Boolean {
-        // `data` ist eine devideosrc-Player-URL (Film) oder devideosrc-URL je Episode.
-        return DevideoSrc.load(data, subtitleCallback, callback)
+        // Normalfall: `data` ist bereits eine devideosrc-Player-URL.
+        if (data.startsWith("https://devideosrc.co")) {
+            if (DevideoSrc.load(data, subtitleCallback, callback)) return true
+        }
+
+        // Fallback: `data` ist eine Webseiten-URL → iframe suchen.
+        val doc = runCatching { app.get(data, referer = "$mainUrl/").document }.getOrNull()
+            ?: return false
+        val devideo = doc.selectFirst("iframe[src*='devideosrc.co']")?.attr("src")
+        if (!devideo.isNullOrBlank()) {
+            return DevideoSrc.load(devideo, subtitleCallback, callback)
+        }
+        return false
     }
 }

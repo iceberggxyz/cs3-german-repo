@@ -40,6 +40,7 @@ object DevideoSrc {
 
         // Serien-Player erkennen (data-resolve-token am <main>).
         val main = doc?.selectFirst("main[data-resolve-token]")
+        println("[DevideoSrc] url=$url serial=${main != null}")
 
         val responseText = if (main != null) {
             val endpoint = main.attr("data-resolve-endpoint").ifBlank { "/api/resolve" }
@@ -77,6 +78,7 @@ object DevideoSrc {
         val parsed = runCatching { parseJson<EmbedResponse>(responseText) }.getOrNull()
             ?: return false
 
+        println("[DevideoSrc] sources=${parsed.sources?.size ?: 0}")
         val sources = parsed.sources ?: return false
         var found = false
         for (source in sources) {
