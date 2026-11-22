@@ -1,5 +1,6 @@
 package com.icebergg.cs3.sto
 
+import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.SearchResponse
@@ -18,9 +19,14 @@ import java.net.URLEncoder
 /**
  * CloudStream-Provider für **s.to / SerienStream** (serienstream.si).
  *
- * Die Folgen-Seite injiziert den Player erst per JavaScript. Aus diesem Grund
- * wird die `devideosrc`-Player-URL direkt aus IMDb-ID + Staffel + Folge gebaut
- * und nicht erst aus dem (leeren) Roh-HTML gelesen.
+ * Wichtige Erkenntnisse aus dem Live-Scraping:
+ *  - Die Detailseite enthält **nur die Folgen der ersten Staffel**.
+ *  - Alle Staffeln stehen als Links `/serie/{slug}/staffel-{n}` auf der Detailseite.
+ *  - Die Staffelseite enthält die Folgen-Links inklusive Episodentitel im
+ *    `title`-Attribut: `/serie/{slug}/staffel-{n}/folge-{e}`.
+ *  - Die Episodenseite injiziert den Player erst per JavaScript; im Roh-HTML
+ *    steht kein iframe. Die Player-URL lässt sich aber direkt bauen:
+ *    `https://devideosrc.co/serial/{imdb}/{staffel}/{folge}`.
  */
 open class StoProvider : MainAPI() {
 
@@ -33,6 +39,7 @@ open class StoProvider : MainAPI() {
     override val supportedTypes = setOf(TvType.TvSeries)
 
     private val seriesRootRegex = Regex(""".*/serie/[^/]+$""")
+    private val seasonRootRegex = Regex(""".*/staffel-(\d+)$""")
     private val episodeRegex = Regex(""".*/staffel-(\d+)/folge-(\d+)$""")
     private val imdbRegex = Regex("""tt\d{7,}""")
 
@@ -71,39 +78,60 @@ open class StoProvider : MainAPI() {
         val poster = fixUrlNull(doc.selectFirst("meta[property='og:image']")?.attr("content"))
         val plot = doc.selectFirst("meta[name='description']")?.attr("content")?.trim()
 
-        // IMDb-ID steht direkt auf der Detailseite (u. a. im IMDb-Link).
         val imdb = imdbRegex.find(doc.html())?.value
         println("[s.to] detail=$url imdb=$imdb")
 
-        // Die Detailseite enthält bereits alle Folgen-Links.
-        val episodes = doc.select("a[href*='/folge-']").mapNotNull { a ->
-            val href = a.attr("href")
-            if (href.isBlank()) return@mapNotNull null
-            val episodeUrl = fixUrl(href)
-            val match = episodeRegex.find(episodeUrl) ?: return@mapNotNull null
+        // Staffel-Links von der Detailseite (nur diese führen zu allen Folgen).
+        val seasonUrls = doc.select("a[href*='/staffel-']")
+            .map { fixUrl(it.attr("href")) }
+            .filter { seasonRootRegex.matches(it) }
+            .distinct()
 
-            val season = match.groupValues[1].toIntOrNull() ?: return@mapNotNull null
-            val episode = match.groupValues[2].toIntOrNull() ?: return@mapNotNull null
+        val episodes = mutableListOf<Episode>()
+        val seen = HashSet<String>()
 
-            // Player-URL direkt bauen – der iframe entsteht auf der Webseite erst per JS.
-            val data = if (imdb != null) {
-                "https://devideosrc.co/serial/$imdb/$season/$episode"
-            } else {
-                episodeUrl
+        for (seasonUrl in seasonUrls) {
+            val seasonFromUrl = seasonRootRegex.find(seasonUrl)?.groupValues?.get(1)?.toIntOrNull()
+            val seasonDoc = runCatching { app.get(seasonUrl, referer = url).document }.getOrNull()
+            if (seasonDoc == null) {
+                println("[s.to] season page failed: $seasonUrl")
+                continue
             }
 
-            val linkText = a.text().trim()
-            val name = linkText.takeIf { it.isNotEmpty() && !it.matches(Regex("""\d+""")) }
-                ?: "Staffel $season Folge $episode"
+            for (a in seasonDoc.select("a[href*='/folge-']")) {
+                val href = a.attr("href")
+                if (href.isBlank()) continue
+                val episodeUrl = fixUrl(href)
+                val match = episodeRegex.find(episodeUrl) ?: continue
 
-            newEpisode(data) {
-                this.name = name
-                this.season = season
-                this.episode = episode
+                val season = match.groupValues[1].toIntOrNull() ?: seasonFromUrl ?: continue
+                val episode = match.groupValues[2].toIntOrNull() ?: continue
+
+                if (!seen.add("$season-$episode")) continue
+
+                // Player-URL direkt bauen – der iframe entsteht auf der Webseite erst per JS.
+                val data = if (imdb != null) {
+                    "https://devideosrc.co/serial/$imdb/$season/$episode"
+                } else {
+                    episodeUrl
+                }
+
+                // Episodentitel steht im title-Attribut der Folgen-Links.
+                val linkText = a.text().trim()
+                val name = a.attr("title").trim()
+                    .ifEmpty { if (linkText.isNotEmpty()) linkText else "Staffel $season Folge $episode" }
+
+                episodes.add(
+                    newEpisode(data) {
+                        this.name = name
+                        this.season = season
+                        this.episode = episode
+                    }
+                )
             }
-        }.distinct()
+        }
 
-        println("[s.to] episodes=${episodes.size}")
+        println("[s.to] seasons=${seasonUrls.size} episodes=${episodes.size}")
 
         return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
             this.posterUrl = poster

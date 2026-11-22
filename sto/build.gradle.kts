@@ -1,5 +1,5 @@
 // Versionsnummer des Plugins als Ganzzahl.
-version = 4
+version = 5
 
 cloudstream {
     language = "de"

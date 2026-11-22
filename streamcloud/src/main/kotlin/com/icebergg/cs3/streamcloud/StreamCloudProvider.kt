@@ -93,6 +93,7 @@ open class StreamCloudProvider : MainAPI() {
                 ?: imdbRegex.find(doc.html())?.value
 
             val episodes = mutableListOf<Episode>()
+            val seen = HashSet<String>()
             if (imdb != null) {
                 for (button in doc.select("button")) {
                     // ownText() liefert "Staffel N" ohne die Episodenzahl im <b>-Kind.
@@ -104,6 +105,8 @@ open class StreamCloudProvider : MainAPI() {
                     if (count <= 0) continue
 
                     for (episode in 1..count) {
+                        // Staffel-Buttons können mehrfach (mobil/desktop) im DOM stehen.
+                        if (!seen.add("$season-$episode")) continue
                         val episodeUrl =
                             "https://devideosrc.co/custom/serial/$imdb/$season/$episode"
                         episodes.add(
