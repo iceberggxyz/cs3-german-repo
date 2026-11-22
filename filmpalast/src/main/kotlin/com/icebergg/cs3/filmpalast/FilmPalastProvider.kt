@@ -27,11 +27,16 @@ import java.net.URLEncoder
  * CloudStream-Provider für **Filmpalast** (filmpalast.to).
  *
  * Live verifiziert am 22.11.2026 (per DoH, da die Domain in DE DNS-gesperrt ist):
- *  - Startseite: `article.liste` mit `a[href*='/stream/']`, Cover als `img.cover`
- *  - Suche:      `GET /search/title/{query}` (URL-encoded, Pfad-Segment)
+ *  - Startseite: `article.liste` mit `a[href*='/stream/']`; Cover als `img.cover`
+ *  - Suche:      `GET /search/title/{query}`. Achtung: Die Suchkarten (`glowliste`)
+ *                haben **kein Cover**, nur Sterne-Icons – und für Serien liefert die
+ *                Suche **jede Episode als eigenen Treffer** (`…-s03e02`, `…-s03e01`, …).
+ *                Deshalb werden Episoden hier auf die Serie zusammengefasst.
  *  - Detail:     `/stream/{slug}` – Hoster stehen direkt im HTML:
- *                `li.hostBg p.hostName` (Name) und `li.streamPlayBtn a.iconPlay` (Play-Link)
- *  - Serien:     Slug endet auf `-s{staffel}e{episode}`, z. B. `…-s03e02`
+ *                `li.hostBg p.hostName` (Name) und `li.streamPlayBtn a.iconPlay` (Play-Link).
+ *  - Serien:     `/stream/{serie}-s{staffel}e{episode}`; die Detailseite enthält im
+ *                `div#staffelWrapper` die verlinkten Episoden (weitere Staffeln lädt
+ *                die Seite per JS über `ul#staffel-nav` nach).
  */
 open class FilmPalast : MainAPI() {
 
@@ -48,13 +53,12 @@ open class FilmPalast : MainAPI() {
     )
 
     private val seriesRegex = Regex("""-s(\d+)e(\d+)""", RegexOption.IGNORE_CASE)
-    private val seriesSuffixRegex = Regex("""(?i)-s\d+e\d+$""")
+    private val seriesSuffixRegex = Regex("""(?i)[\s\-]*s\d+e\d+$""")
 
     private var baseResolved = false
 
     /**
      * `filmpalast.tv` liefert eine JS-Challenge, `filmpalast.to` antwortet direkt.
-     * Die Prüfung stellt sicher, dass wirklich Katalog-Inhalt kommt.
      */
     private suspend fun ensureBase(): String {
         if (baseResolved) return mainUrl
@@ -94,12 +98,14 @@ open class FilmPalast : MainAPI() {
         val doc = runCatching { app.get(url, referer = "$mainUrl/").document }.getOrNull()
             ?: return null
 
-        val title = doc.selectFirst("h2.bgDark")?.text()?.trim().orEmpty()
+        val rawTitle = doc.selectFirst("h2.bgDark")?.text()?.trim().orEmpty()
             .ifEmpty { doc.selectFirst("h1")?.text()?.trim().orEmpty() }
             .ifEmpty { doc.title().substringBefore(" Stream").trim() }
+
         val poster = fixUrlNull(
             doc.selectFirst("meta[property='og:image']")?.attr("content")
                 ?: doc.selectFirst("img[id^='s_img__']")?.attr("src")
+                ?: doc.selectFirst("img.cover")?.attr("src")
         )
         val plot = doc.selectFirst("meta[name='description']")?.attr("content")?.trim()
 
@@ -107,21 +113,24 @@ open class FilmPalast : MainAPI() {
         val seriesMatch = seriesRegex.find(slug)
 
         if (seriesMatch == null) {
-            // Film: Detailseite dient als data-URL, loadLinks liest die Hoster dort.
-            return newMovieLoadResponse(title, url, TvType.Movie, url) {
+            return newMovieLoadResponse(rawTitle, url, TvType.Movie, url) {
                 this.posterUrl = poster
                 this.plot = plot
             }
         }
 
-        val season = seriesMatch.groupValues[1].toIntOrNull() ?: 1
-        val episode = seriesMatch.groupValues[2].toIntOrNull() ?: 1
-        val baseSlug = slug.replace(seriesSuffixRegex, "")
+        // Serientitel ohne Episoden-Suffix ("Percy Jackson … S03E01" -> "Percy Jackson …").
+        val title = rawTitle.replace(seriesSuffixRegex, "").trim().ifEmpty { rawTitle }
+        val baseSlug = slug.replace(Regex("(?i)-s\\d+e\\d+$"), "")
 
-        // Alle Episoden derselben Serie, die auf der Seite verlinkt sind.
         val episodes = mutableListOf<Episode>()
         val seen = HashSet<String>()
-        for (a in doc.select("a[href*='/stream/']")) {
+
+        // 1) Verlinkte Episoden aus dem Staffel-Bereich (enthält i. d. R. alle Folgen, die
+        //    ohne JS verfügbar sind).
+        val container = doc.selectFirst("div#staffelWrapper") ?: doc.selectFirst("div.streamStaffelWrapper")
+        val linkSource = container?.select("a[href*='/stream/']") ?: doc.select("a[href*='/stream/']")
+        for (a in linkSource) {
             val link = normalize(a.attr("href")) ?: continue
             val linkSlug = link.substringAfterLast("/")
             if (!linkSlug.startsWith(baseSlug, ignoreCase = true)) continue
@@ -136,13 +145,18 @@ open class FilmPalast : MainAPI() {
             })
         }
 
-        if (episodes.isEmpty()) {
+        // 2) Angeklickte Episode immer enthalten.
+        val clickedSeason = seriesMatch.groupValues[1].toIntOrNull() ?: 1
+        val clickedEpisode = seriesMatch.groupValues[2].toIntOrNull() ?: 1
+        if (seen.add("$clickedSeason-$clickedEpisode")) {
             episodes.add(newEpisode(url) {
-                this.name = "Staffel $season Folge $episode"
-                this.season = season
-                this.episode = episode
+                this.name = "Staffel $clickedSeason Folge $clickedEpisode"
+                this.season = clickedSeason
+                this.episode = clickedEpisode
             })
         }
+
+        println("[Filmpalast] series=$baseSlug episodes=${episodes.size}")
 
         return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
             this.posterUrl = poster
@@ -183,6 +197,12 @@ open class FilmPalast : MainAPI() {
     // Hilfsfunktionen
     // ------------------------------------------------------------------
 
+    /**
+     * Wertet die Karten einer Listen-/Suchseite aus.
+     *
+     * Serien-Episoden (`…-s03e02`) werden zu **einem** Serientreffer zusammengefasst,
+     * sonst bestünde die Trefferliste nur aus Einzelfolgen.
+     */
     private fun parseCards(doc: Document): List<SearchResponse> {
         val out = mutableListOf<SearchResponse>()
         val seen = HashSet<String>()
@@ -190,28 +210,53 @@ open class FilmPalast : MainAPI() {
         for (article in doc.select("article.liste")) {
             val a = article.selectFirst("a[href*='/stream/']") ?: continue
             val url = normalize(a.attr("href")) ?: continue
-            if (!seen.add(url)) continue
 
             val title = a.attr("title").trim()
                 .ifEmpty { article.selectFirst("h2 a")?.text()?.trim().orEmpty() }
                 .ifEmpty { a.text().trim() }
             if (title.isEmpty()) continue
 
-            val img = article.selectFirst("img.cover") ?: article.selectFirst("img")
-            val poster = fixUrlNull(
-                img?.attr("src")?.ifBlank { null } ?: img?.attr("data-src")
-            )
+            val poster = posterOf(article)
+            val slug = url.substringAfterLast("/")
+            val m = seriesRegex.find(slug)
 
-            val isSeries = seriesSuffixRegex.containsMatchIn(url.substringAfterLast("/"))
-            out.add(
-                if (isSeries) {
-                    newTvSeriesSearchResponse(title, url, TvType.TvSeries) { this.posterUrl = poster }
-                } else {
-                    newMovieSearchResponse(title, url, TvType.Movie) { this.posterUrl = poster }
-                }
-            )
+            if (m != null) {
+                // Auf Serie reduzieren: ein Treffer pro Serie, nicht pro Episode.
+                val baseSlug = slug.replace(Regex("(?i)-s\\d+e\\d+$"), "")
+                if (!seen.add("series:$baseSlug")) continue
+                val seriesTitle = title.replace(seriesSuffixRegex, "").trim().ifEmpty { title }
+                out.add(newTvSeriesSearchResponse(seriesTitle, url, TvType.TvSeries) {
+                    this.posterUrl = poster
+                })
+            } else {
+                if (!seen.add("movie:$url")) continue
+                out.add(newMovieSearchResponse(title, url, TvType.Movie) {
+                    this.posterUrl = poster
+                })
+            }
         }
         return out
+    }
+
+    /**
+     * Cover eines Karten-Elements.
+     *
+     * Die Suchkarten enthalten **kein** Cover, dafür Sterne-Icons aus
+     * `/themes/downloadarchive/`. Diese dürfen nicht als Poster durchgehen –
+     * sonst zeigt die App überall Sterne statt Bildern.
+     */
+    private fun posterOf(article: org.jsoup.nodes.Element): String? {
+        val candidates = article.select("img")
+        for (img in candidates) {
+            val raw = img.attr("data-src").ifBlank { img.attr("src") }
+            if (raw.isBlank()) continue
+            val lower = raw.lowercase()
+            if (lower.contains("themes/downloadarchive")) continue
+            if (lower.contains("star_on") || lower.contains("star_off")) continue
+            if (lower.contains("blank.png")) continue
+            return fixUrlNull(raw)
+        }
+        return null
     }
 
     /** Macht `//host/stream/x`, `/stream/x` und absolute URLs vergleichbar. */
