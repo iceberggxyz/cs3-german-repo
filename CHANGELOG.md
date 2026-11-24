@@ -4,7 +4,11 @@ Alle nennenswerten Änderungen an diesem Repository.
 
 ## Unveröffentlicht
 
-- **MegaKino reaktiviert** (v5, Status 1): Der Provider zielt jetzt auf
+- README: **Google** als empfohlenen DoH-Resolver dokumentiert. Cloudflare löst
+  `kkiste-io.ink` nicht auf – dort greift der DoH-Resolver, nicht der Provider.
+  Domain-Liste um `kkiste-io.ink` und `megakino29.com` erweitert, plus Hinweis
+  „bei leerer Quelle zuerst den Resolver wechseln“.
+- **MegaKino reaktiviert** (v5/v6, Status 1): Der Provider zielt jetzt auf
   `megakino29.com` (DataLife Engine, Template `popcornie-dark`). Streams stehen
   pro Hoster als Iframe mit `data-src` in der Detailseite, Serien als
   `select#ep1…epN`. Der alte `gxplayer`-Pfad entfällt damit vollständig.
