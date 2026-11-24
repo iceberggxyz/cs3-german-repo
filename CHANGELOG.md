@@ -4,6 +4,16 @@ Alle nennenswerten Änderungen an diesem Repository.
 
 ## Unveröffentlicht
 
+- **MegaKino reaktiviert** (v5, Status 1): Der Provider zielt jetzt auf
+  `megakino29.com` (DataLife Engine, Template `popcornie-dark`). Streams stehen
+  pro Hoster als Iframe mit `data-src` in der Detailseite, Serien als
+  `select#ep1…epN`. Der alte `gxplayer`-Pfad entfällt damit vollständig.
+- **MegaKino-Mirror `1megakino.cc`** (Template `megaKino`): Hoster-Ziele stehen
+  als `span[data-link]` (devideosrc/Vidara/VOE/FrStream). Nur Startseite,
+  Detailseiten und Streams – die Suche ist dort durch Cloudflare-Turnstile
+  gesperrt (HTTP 403) und liefert eine leere Liste.
+- `megakino28.top` wird bewusst nicht unterstützt: eigene Plattform mit
+  VOE-Klon als einziger Quelle.
 - Fehlerbehandlung: alle Provider fangen HTTP-/Parse-Fehler ab, statt eine
   Exception an die App durchzureichen.
 - `ExtractorLinkType.M3U8` für devideosrc-Quellen gesetzt.

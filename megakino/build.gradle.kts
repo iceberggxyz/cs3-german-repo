@@ -1,9 +1,14 @@
 // Versionsnummer des Plugins als Ganzzahl.
-version = 4
+version = 5
+
+// Gemeinsame Quellen (DevideoSrc) mit sto/streamcloud teilen, statt zu kopieren.
+android {
+    sourceSets["main"].java.srcDir(rootProject.file("shared/src/main/kotlin"))
+}
 
 cloudstream {
     language = "de"
-    description = "MegaKino - Player derzeit nicht aufloesbar (gxplayer)"
+    description = "MegaKino - Filme und Serien (megakino29.com, Mirror 1megakino.cc)"
     authors = listOf("IceBERGG")
 
     /**
@@ -13,9 +18,8 @@ cloudstream {
      * 2: Slow
      * 3: Nur Beta
      */
-    // Down: megakino.co antwortet dauerhaft mit HTTP 403.
-    status = 0
+    status = 1
     tvTypes = listOf("Movie", "TvSeries", "Documentary")
 
-    iconUrl = "https://www.google.com/s2/favicons?domain=https://megakino4.to&sz=%size%"
+    iconUrl = "https://www.google.com/s2/favicons?domain=https://megakino29.com&sz=%size%"
 }

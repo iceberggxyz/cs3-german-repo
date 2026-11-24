@@ -49,8 +49,8 @@ Ohne DoH bleiben `filmpalast.to` und `serienstream.si` (s.to) unerreichbar.
 | KKiste         | Filme & Serien  |                      |
 | s.to           | Serien          | benötigt DoH         |
 | StreamCloud    | Filme & Serien  |                      |
+| MegaKino       | Filme & Serien  | Mirror: `1megakino.cc` (Suche dort per Cloudflare gesperrt) |
 | Kinox          | Filme & Serien  | derzeit nicht verfügbar |
-| MegaKino       | Filme & Serien  | derzeit nicht verfügbar |
 
 > Alle Inhalte stammen von den jeweiligen Anbietern. Dieses Repository stellt
 > lediglich die Schnittstelle für CloudStream bereit.
