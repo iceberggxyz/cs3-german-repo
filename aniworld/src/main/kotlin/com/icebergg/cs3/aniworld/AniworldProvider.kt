@@ -43,11 +43,36 @@ open class AniworldProvider : MainAPI() {
     override val hasMainPage = true
     override var lang = "de"
 
+    private var baseResolved = false
+
+    /**
+     * Probiert die live getesteten Mirrors durch und setzt [mainUrl] auf die
+     * erste Domain, die einen echten Katalog liefert (`div.carousel`).
+     */
+    private suspend fun ensureBase(): String {
+        if (baseResolved) return mainUrl
+        for (mirror in MIRRORS) {
+            val html = runCatching { app.get("$mirror/").text }.getOrNull() ?: continue
+            if (html.contains("carousel")) {
+                mainUrl = mirror
+                baseResolved = true
+                println("[AniWorld] base=$mirror")
+                return mainUrl
+            }
+        }
+        baseResolved = true
+        println("[AniWorld] no working mirror, fallback=$mainUrl")
+        return mainUrl
+    }
+
     override suspend fun getMainPage(
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
-        val document = app.get(mainUrl).document
+        ensureBase()
+        // Kein eingebauter Schutz durch die App: Fehler hier defensiv abfangen.
+        val document = runCatching { app.get(mainUrl).document }.getOrNull()
+            ?: return newHomePageResponse(emptyList<HomePageList>(), hasNext = false)
 
         val homePageLists = document.select("div.carousel").map { ele ->
             val header = ele.selectFirst("h2")?.text() ?: return@map null
@@ -62,15 +87,20 @@ open class AniworldProvider : MainAPI() {
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
-        val resp = app.post(
-            "$mainUrl/ajax/search",
-            data = mapOf("keyword" to query),
-            referer = "$mainUrl/search",
-            headers = mapOf(
-                "x-requested-with" to "XMLHttpRequest"
+        ensureBase()
+        val resp = runCatching {
+            app.post(
+                "$mainUrl/ajax/search",
+                data = mapOf("keyword" to query),
+                referer = "$mainUrl/search",
+                headers = mapOf(
+                    "x-requested-with" to "XMLHttpRequest"
+                )
             )
-        )
-        return resp.parsed<SearchResp>().filter {
+        }.getOrNull() ?: return emptyList()
+
+        val items = runCatching { resp.parsed<SearchResp>() }.getOrNull() ?: return emptyList()
+        return items.filter {
             !it.link.contains("episode-") && it.link.contains("/stream")
         }.map {
             newTvSeriesSearchResponse(
@@ -82,7 +112,7 @@ open class AniworldProvider : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse? {
-        val document = app.get(url).document
+        val document = runCatching { app.get(url).document }.getOrNull() ?: return null
 
         val title = document.selectFirst("div.series-title span")?.text() ?: return null
         val poster = fixUrlNull(document.selectFirst("div.seriesCoverBox img")?.attr("data-src"))
@@ -95,7 +125,10 @@ open class AniworldProvider : MainAPI() {
         val episodes = document.select("div#stream > ul:first-child li").mapNotNull { ele ->
             val seasonLink = ele.selectFirst("a") ?: return@mapNotNull null
             val seasonNumber = seasonLink.text().toIntOrNull()
-            val seasonDocument = app.get(fixUrl(seasonLink.attr("href"))).document
+            // Eine defekte Staffelseite darf nicht die ganze Serie verhindern.
+            val seasonDocument = runCatching {
+                app.get(fixUrl(seasonLink.attr("href"))).document
+            }.getOrNull() ?: return@mapNotNull emptyList()
 
             seasonDocument.select("table.seasonEpisodesList tbody tr").map { eps ->
                 newEpisode(
@@ -131,33 +164,35 @@ open class AniworldProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val document = app.get(data).document
+        val document = runCatching { app.get(data).document }.getOrNull() ?: return false
         document.select("div.hosterSiteVideo ul li").map {
             Triple(
                 it.attr("data-lang-key"),
                 it.attr("data-link-target"),
                 it.select("h4").text()
             )
-        }.amap {
-            val redirectUrl = app.get(fixUrl(it.second)).url
-            val lang = it.first.getLanguage(document)
-            val name = "${it.third} [$lang]"
+        }.amap { item ->
+            val redirectUrl = runCatching { app.get(fixUrl(item.second)).url }.getOrNull()
+            if (redirectUrl != null) {
+                val lang = item.first.getLanguage(document)
+                val name = "${item.third} [$lang]"
 
-            loadExtractor(redirectUrl, data, subtitleCallback) { link ->
-                val linkWithFixedName = runBlocking {
-                    newExtractorLink(
-                        source = it.third,
-                        name = name,
-                        url = link.url
-                    ) {
-                        referer = link.referer
-                        quality = link.quality
-                        type = link.type
-                        headers = link.headers
-                        extractorData = link.extractorData
+                HosterResolver.resolve(redirectUrl, data, subtitleCallback) { link ->
+                        val linkWithFixedName = runBlocking {
+                            newExtractorLink(
+                                source = item.third,
+                                name = name,
+                                url = link.url
+                            ) {
+                                referer = link.referer
+                                quality = link.quality
+                                type = link.type
+                                headers = link.headers
+                                extractorData = link.extractorData
+                            }
+                        }
+                        callback.invoke(linkWithFixedName)
                     }
-                }
-                callback.invoke(linkWithFixedName)
             }
         }
 
@@ -177,6 +212,18 @@ open class AniworldProvider : MainAPI() {
     private fun String.getLanguage(document: Document): String? {
         return document.selectFirst("div.changeLanguageBox img[data-lang-key=$this]")
             ?.attr("title")?.removePrefix("mit")?.trim()
+    }
+
+    companion object {
+        /**
+         * Live getestet (23.11.2026): `.to`, `.cc` und `.cx` liefern dieselbe Seite,
+         * `.sx`/`.gs`/`.cam` loesen nicht auf, `.tv`/`.ws` brechen die Verbindung ab.
+         */
+        private val MIRRORS = listOf(
+            "https://aniworld.to",
+            "https://aniworld.cc",
+            "https://aniworld.cx",
+        )
     }
 
     private class SearchResp : ArrayList<SearchItem>()

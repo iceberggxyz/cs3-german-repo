@@ -1,0 +1,109 @@
+<#
+.SYNOPSIS
+    Prueft, ob die konfigurierten Quellen erreichbar sind und ihre
+    Kern-Selektoren noch greifen.
+
+.DESCRIPTION
+    Kein Ersatz fuer einen echten Provider-Test auf dem Geraet, aber ein
+    schneller Indikator in CI: Wenn hier ein Marker fehlt, hat die Seite ihre
+    Struktur geaendert und der Provider muss nachgezogen werden.
+
+.PARAMETER SaveFixtures
+    Speichert die abgerufenen HTML-Antworten unter fixtures/ zur spaeteren
+    Auswertung.
+
+.EXAMPLE
+    pwsh -File scripts/smoke_test.ps1
+    pwsh -File scripts/smoke_test.ps1 -SaveFixtures
+#>
+param(
+    [switch]$SaveFixtures
+)
+
+$ErrorActionPreference = 'Continue'
+$ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36'
+$fixtureDir = Join-Path (Join-Path $PSScriptRoot '..') 'fixtures'
+$failures = 0
+$results = @()
+
+if ($SaveFixtures -and -not (Test-Path $fixtureDir)) {
+    New-Item -ItemType Directory -Path $fixtureDir -Force | Out-Null
+}
+
+function Test-Source {
+    param(
+        [string]$Name,
+        [string]$Url,
+        [string]$Marker,
+        [string]$FixtureName,
+        # Domains, die in Deutschland per DNS gesperrt sind: ein
+        # Namensaufloesungs-Fehler wird dann dokumentiert, aber nicht gewertet.
+        [switch]$DnsBlockedInDe
+    )
+
+    $status = 'FAIL'
+    $detail = ''
+    try {
+        $r = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 30 -Headers @{ 'User-Agent' = $ua }
+        $body = $r.Content
+        $found = $body -match $Marker
+        $status = if ($found) { 'ok' } else { 'MARKER FEHLT' }
+        $detail = "HTTP $($r.StatusCode), $($body.Length) Bytes"
+        if ($SaveFixtures -and $FixtureName) {
+            $path = Join-Path $fixtureDir $FixtureName
+            Set-Content -Path $path -Value $body -Encoding UTF8
+            $detail += ", Fixture gespeichert"
+        }
+    } catch {
+        $msg = $_.Exception.Message
+        $resolvesNothing = $msg -match 'aufgel|resolved|Name or service not known|No address'
+        if ($DnsBlockedInDe -and $resolvesNothing) {
+            $status = 'skip (DNS-Sperre DE)'
+            $detail = 'erwartbar - in CI/US-Netz aussagekraeftig'
+        } else {
+            $code = 'ERR'
+            if ($_.Exception.Response) { $code = [int]$_.Exception.Response.StatusCode }
+            $detail = "HTTP $code - $msg"
+        }
+    }
+
+    if ($status -ne 'ok' -and $status -notlike 'skip*') { $script:failures++ }
+
+    $script:results += [pscustomobject]@{
+        Quelle = $Name
+        Status = $status
+        Detail = $detail
+        URL    = $Url
+    }
+}
+
+# --- Startseiten -----------------------------------------------------------
+Test-Source -Name 'AniWorld'     -Url 'https://aniworld.to/'            -Marker 'carousel'          -FixtureName 'aniworld-start.html'
+Test-Source -Name 'Filmpalast'   -Url 'https://filmpalast.to/'          -Marker 'article class="liste' -FixtureName 'filmpalast-start.html' -DnsBlockedInDe
+Test-Source -Name 'KKiste'       -Url 'https://kkiste-io.ink/'          -Marker '<article'          -FixtureName 'kkiste-start.html'
+Test-Source -Name 's.to'         -Url 'https://serienstream.si/'        -Marker '/serie/'           -FixtureName 'sto-start.html'
+Test-Source -Name 'StreamCloud'  -Url 'https://streamcloud.date/filme'  -Marker '/filme/'           -FixtureName 'streamcloud-filme.html'
+
+# --- Suche -----------------------------------------------------------------
+Test-Source -Name 'Filmpalast-Suche' -Url 'https://filmpalast.to/search/title/godzilla'      -Marker '/stream/'   -FixtureName 'filmpalast-suche.html' -DnsBlockedInDe
+Test-Source -Name 's.to-Suche'       -Url 'https://serienstream.si/suche?q=breaking'         -Marker '/serie/'    -FixtureName 'sto-suche.html'
+Test-Source -Name 'StreamCloud-Suche'-Url 'https://streamcloud.date/suche?q=breaking'        -Marker '/serie/'    -FixtureName 'streamcloud-suche.html'
+
+# --- Ausgabe ---------------------------------------------------------------
+$results | Format-Table -AutoSize | Out-String -Width 200 | Write-Output
+
+if ($env:GITHUB_STEP_SUMMARY) {
+    $md = "| Quelle | Status | Detail |`n|---|---|---|`n"
+    foreach ($r in $results) {
+        $md += "| $($r.Quelle) | $($r.Status) | $($r.Detail) |`n"
+    }
+    Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $md
+}
+
+if ($failures -gt 0) {
+    Write-Output "$failures Quelle(n) fehlgeschlagen."
+    exit 1
+}
+
+Write-Output 'Alle Quellen in Ordnung.'
+exit 0

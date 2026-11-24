@@ -3,6 +3,7 @@ package com.icebergg.cs3.kkiste
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
+import com.lagradost.cloudstream3.LoadResponse.Companion.addImdbId
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.SearchResponse
@@ -41,6 +42,15 @@ open class KkisteProvider : MainAPI() {
 
         /** Detailseiten haben immer eine numerische ID: `/26355-titel....html`. */
         val DETAIL_REGEX = Regex(""".*/\d+-.*\.html$""")
+
+        /**
+         * Live getestet (23.11.2026): `.ink` und `.com` liefern denselben Katalog,
+         * `kkiste.to` ist eine Parkseite, `kkiste.io` nur eine Weiterleitung.
+         */
+        private val MIRRORS = listOf(
+            "https://kkiste-io.ink",
+            "https://kkiste-io.com",
+        )
     }
 
     override var name = "KKiste"
@@ -56,11 +66,31 @@ open class KkisteProvider : MainAPI() {
         "/" to "Neu auf KKiste",
     )
 
+    private var baseResolved = false
+
+    /** Setzt [mainUrl] auf den ersten Mirror, der echte Detail-Links liefert. */
+    private suspend fun ensureBase(): String {
+        if (baseResolved) return mainUrl
+        for (mirror in MIRRORS) {
+            val html = runCatching { app.get("$mirror/").text }.getOrNull() ?: continue
+            if (DETAIL_REGEX.containsMatchIn(html)) {
+                mainUrl = mirror
+                baseResolved = true
+                println("[KKiste] base=$mirror")
+                return mainUrl
+            }
+        }
+        baseResolved = true
+        println("[KKiste] no working mirror, fallback=$mainUrl")
+        return mainUrl
+    }
+
     // ------------------------------------------------------------------
     // Startseite
     // ------------------------------------------------------------------
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+        ensureBase()
         val url = if (page <= 1) "$mainUrl/" else "$mainUrl/page/$page/"
         val doc = runCatching { app.get(url, referer = "$mainUrl/").document }.getOrNull()
             ?: return newHomePageResponse(request.name, emptyList())
@@ -120,6 +150,7 @@ open class KkisteProvider : MainAPI() {
     // ------------------------------------------------------------------
 
     override suspend fun search(query: String): List<SearchResponse> {
+        ensureBase()
         // KKiste nutzt ein POST-Formular (do/subaction/story) auf die Startseite.
         val doc = runCatching {
             app.post(
@@ -140,8 +171,9 @@ open class KkisteProvider : MainAPI() {
     // Detailseite
     // ------------------------------------------------------------------
 
-    override suspend fun load(url: String): LoadResponse {
-        val doc = app.get(url, referer = "$mainUrl/").document
+    override suspend fun load(url: String): LoadResponse? {
+        val doc = runCatching { app.get(url, referer = "$mainUrl/").document }.getOrNull()
+            ?: return null
 
         val title = doc.selectFirst("article h1, h1")?.text()?.trim().orEmpty()
             .ifEmpty { doc.title() }
@@ -150,6 +182,7 @@ open class KkisteProvider : MainAPI() {
         val poster = fixUrlNull(posterImg?.attr("src") ?: posterImg?.attr("data-src"))
 
         val plot = doc.selectFirst("article p, .fdesc, .full-text")?.text()?.trim()
+        val imdb = Regex("""imdb\.com/title/(tt\d+)""").find(doc.html())?.groupValues?.get(1)
 
         val sources = collectStreamSources(doc, url)
         val isSeries = REGEX_STAFFEL.containsMatchIn(title) && sources.size > 1
@@ -166,11 +199,13 @@ open class KkisteProvider : MainAPI() {
             newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
                 this.posterUrl = poster
                 this.plot = plot
+                if (imdb != null) addImdbId(imdb)
             }
         } else {
             newMovieLoadResponse(title, url, TvType.Movie, url) {
                 this.posterUrl = poster
                 this.plot = plot
+                if (imdb != null) addImdbId(imdb)
             }
         }
     }
@@ -189,7 +224,8 @@ open class KkisteProvider : MainAPI() {
         val pageUrl = data.substringBefore("#")
         val idx = data.substringAfter("#idx=", "").toIntOrNull()
 
-        val doc = app.get(pageUrl, referer = "$mainUrl/").document
+        val doc = runCatching { app.get(pageUrl, referer = "$mainUrl/").document }.getOrNull()
+            ?: return false
         val sources = collectStreamSources(doc, pageUrl)
 
         val selected = when {
@@ -199,10 +235,10 @@ open class KkisteProvider : MainAPI() {
 
         var found = false
         for (source in selected) {
-            loadExtractor(source.url, pageUrl, subtitleCallback) { link ->
-                callback.invoke(link)
+            // HosterResolver loest VOE-Kurzlinks und Vorschalt-Seiten (iframe) auf.
+            if (HosterResolver.resolve(source.url, pageUrl, subtitleCallback) { callback.invoke(it) }) {
+                found = true
             }
-            found = true
         }
         return found
     }

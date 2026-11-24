@@ -1,5 +1,10 @@
 // Versionsnummer des Plugins als Ganzzahl.
-version = 9
+version = 10
+
+// Gemeinsame Quellen (DevideoSrc) mit sto teilen, statt zu kopieren.
+android {
+    sourceSets["main"].java.srcDir(rootProject.file("shared/src/main/kotlin"))
+}
 
 cloudstream {
     language = "de"

@@ -3,6 +3,7 @@ package com.icebergg.cs3.filmpalast
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
+import com.lagradost.cloudstream3.LoadResponse.Companion.addImdbId
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.SearchResponse
@@ -107,6 +108,7 @@ open class FilmPalast : MainAPI() {
                 ?: doc.selectFirst("img.cover")?.attr("src")
         )
         val plot = doc.selectFirst("meta[name='description']")?.attr("content")?.trim()
+        val imdb = Regex("""imdb\.com/title/(tt\d+)""").find(doc.html())?.groupValues?.get(1)
 
         val slug = url.substringAfterLast("/")
         val seriesMatch = seriesRegex.find(slug)
@@ -115,6 +117,7 @@ open class FilmPalast : MainAPI() {
             return newMovieLoadResponse(rawTitle, url, TvType.Movie, url) {
                 this.posterUrl = poster
                 this.plot = plot
+                if (imdb != null) addImdbId(imdb)
             }
         }
 
@@ -160,6 +163,7 @@ open class FilmPalast : MainAPI() {
         return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
             this.posterUrl = poster
             this.plot = plot
+            if (imdb != null) addImdbId(imdb)
         }
     }
 

@@ -1,8 +1,10 @@
 package com.icebergg.cs3.streamcloud
 
+import com.icebergg.cs3.shared.DevideoSrc
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
+import com.lagradost.cloudstream3.LoadResponse.Companion.addImdbId
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.SearchResponse
@@ -223,13 +225,16 @@ open class StreamCloudProvider : MainAPI() {
             return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
                 this.posterUrl = poster
                 this.plot = plot
+                if (imdb != null) addImdbId(imdb)
             }
         }
 
         val dataUrl = devideoIframe ?: url
+        val movieImdb = imdbRegex.find(doc.html())?.value
         return newMovieLoadResponse(title, url, TvType.Movie, dataUrl) {
             this.posterUrl = poster
             this.plot = plot
+            if (movieImdb != null) addImdbId(movieImdb)
         }
     }
 
@@ -248,10 +253,18 @@ open class StreamCloudProvider : MainAPI() {
         val doc = runCatching { app.get(data, referer = "$mainUrl/").document }.getOrNull()
             ?: return false
         val devideo = doc.selectFirst("iframe[src*='devideosrc.co']")?.attr("src")
-        if (!devideo.isNullOrBlank()) {
-            return DevideoSrc.load(devideo, subtitleCallback, callback)
+        if (!devideo.isNullOrBlank() && DevideoSrc.load(devideo, subtitleCallback, callback)) {
+            return true
         }
-        return false
+
+        // Fallback: Hoster-Links der Seite (inkl. VOE-Kurzlink und iframe-Kette).
+        var found = false
+        for (el in doc.select("[data-link], a[href]")) {
+            val raw = el.attr("data-link").ifBlank { el.attr("href") }
+            if (!raw.startsWith("http")) continue
+            if (HosterResolver.resolve(raw, data, subtitleCallback) { callback(it) }) found = true
+        }
+        return found
     }
 
     companion object {

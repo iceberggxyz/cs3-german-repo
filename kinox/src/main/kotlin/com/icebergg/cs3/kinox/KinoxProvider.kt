@@ -94,7 +94,9 @@ open class KinoxProvider : MainAPI() {
     override suspend fun search(query: String): List<SearchResponse> {
         ensureBase()
         val encoded = URLEncoder.encode(query, "UTF-8")
-        val doc = app.get("$mainUrl$SEARCH_PATH$encoded", referer = "$mainUrl/").document
+        val doc = runCatching {
+            app.get("$mainUrl$SEARCH_PATH$encoded", referer = "$mainUrl/").document
+        }.getOrNull() ?: return emptyList()
 
         val results = mutableListOf<SearchResponse>()
         val seen = HashSet<String>()
@@ -123,8 +125,9 @@ open class KinoxProvider : MainAPI() {
     // Detailseite
     // ------------------------------------------------------------------
 
-    override suspend fun load(url: String): LoadResponse {
-        val doc = app.get(url, referer = "$mainUrl/").document
+    override suspend fun load(url: String): LoadResponse? {
+        val doc = runCatching { app.get(url, referer = "$mainUrl/").document }.getOrNull()
+            ?: return null
 
         val title = doc.selectFirst("h1, .series-title, .Title")?.text()?.trim().orEmpty()
             .ifEmpty { doc.title() }
@@ -226,7 +229,8 @@ open class KinoxProvider : MainAPI() {
             append("&Season=").append(season)
         }
 
-        val doc = app.get(hosterUrl, referer = data).document
+        val doc = runCatching { app.get(hosterUrl, referer = data).document }.getOrNull()
+            ?: return false
 
         var found = false
         for (item in doc.select("a[href*='/Stream/'], a[href*='Hoster'], a[href*='/aGET/']")) {
@@ -234,10 +238,12 @@ open class KinoxProvider : MainAPI() {
             if (hostName.isEmpty()) continue
 
             val redirectUrl = fixUrl(item.attr("href"))
-            loadExtractor(redirectUrl, data, subtitleCallback) { link ->
-                callback.invoke(link)
-            }
-            found = true
+            val ok = runCatching {
+                loadExtractor(redirectUrl, data, subtitleCallback) { link ->
+                    callback.invoke(link)
+                }
+            }.getOrDefault(false)
+            if (ok) found = true
         }
         return found
     }

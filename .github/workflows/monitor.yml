@@ -1,0 +1,87 @@
+name: Source monitor
+
+on:
+  schedule:
+    # taeglich 04:00 UTC
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Probe sources
+        id: probe
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import urllib.request, ssl, json
+
+          sources = {
+              "AniWorld":   "https://aniworld.to/",
+              "Filmpalast": "https://filmpalast.to/",
+              "KKiste":     "https://kkiste-io.ink/",
+              "s.to":       "https://serienstream.si/",
+              "StreamCloud":"https://streamcloud.date/",
+              "Kinox":      "https://kinox.to/",
+              "MegaKino":   "https://megakino.vip/",
+          }
+
+          ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+          ctx = ssl.create_default_context()
+          ctx.check_hostname = False
+          ctx.verify_mode = ssl.CERT_NONE
+
+          rows = []
+          down = []
+          for name, url in sources.items():
+              try:
+                  req = urllib.request.Request(url, headers={"User-Agent": ua})
+                  with urllib.request.urlopen(req, timeout=25, context=ctx) as r:
+                      body = r.read(400_000).decode("utf-8", "ignore")
+                      status = r.status
+                      ok = status == 200 and len(body) > 5000
+                      rows.append(f"| {name} | {status} | {len(body)} | {'ok' if ok else 'verdaechtig'} |")
+                      if not ok:
+                          down.append(name)
+              except Exception as e:
+                  rows.append(f"| {name} | ERR | 0 | {type(e).__name__} |")
+                  down.append(name)
+
+          with open("monitor-report.md", "w") as f:
+              f.write("| Quelle | Status | Bytes | Bewertung |\n|---|---|---|---|\n")
+              f.write("\n".join(rows) + "\n")
+
+          print("down=" + (",".join(down) if down else "none"))
+          PY
+
+      - name: Write summary
+        run: cat monitor-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open issue when sources fail
+        if: steps.probe.outputs.down != 'none'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOWN: ${{ steps.probe.outputs.down }}
+        run: |
+          title="Quellen nicht erreichbar: ${DOWN}"
+          # Doppelte Issues vermeiden: nur anlegen, wenn kein offenes Issue mit gleichem Titel existiert.
+          existing=$(gh issue list --state open --search "${DOWN} in:title" --json title --jq 'length')
+          if [ "$existing" = "0" ]; then
+            gh issue create --title "$title" --body-file monitor-report.md
+          else
+            echo "Offenes Issue existiert bereits."
+          fi
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: monitor-report
+          path: monitor-report.md

@@ -1,5 +1,10 @@
 // Versionsnummer des Plugins als Ganzzahl.
-version = 7
+version = 8
+
+// Gemeinsame Quellen (DevideoSrc) mit streamcloud teilen, statt zu kopieren.
+android {
+    sourceSets["main"].java.srcDir(rootProject.file("shared/src/main/kotlin"))
+}
 
 cloudstream {
     language = "de"

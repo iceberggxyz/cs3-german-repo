@@ -86,8 +86,11 @@ open class Megakino : MainAPI() {
     private suspend fun getActualMainUrlAndCookies(): Pair<Map<String, String>, String> {
         urlCookieCache?.let { return it }
 
-        val actualMainUrl = app.get(resolveBase()).url.trimEnd('/')
-        val cookies = app.get("$actualMainUrl/index.php?yg=token").cookies
+        val base = resolveBase()
+        val actualMainUrl = runCatching { app.get(base).url.trimEnd('/') }.getOrNull()
+            ?: return emptyMap<String, String>() to base
+        val cookies = runCatching { app.get("$actualMainUrl/index.php?yg=token").cookies }
+            .getOrDefault(emptyMap())
 
         return cookies to actualMainUrl
     }
@@ -95,11 +98,15 @@ open class Megakino : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val (cookies, actualMainUrl) = getActualMainUrlAndCookies()
 
-        val document =
+        val document = runCatching {
             app.get(
                 "$actualMainUrl/${request.data}/page/$page",
                 cookies = cookies
             ).document
+        }.getOrNull() ?: return newHomePageResponse(
+            list = HomePageList(request.name, emptyList(), isHorizontalImages = false),
+            hasNext = false
+        )
         val home = document.select("#dle-content > a").mapNotNull {
             it.toSearchResult()
         }
@@ -129,19 +136,23 @@ open class Megakino : MainAPI() {
 
         val data =
             mapOf("do" to "search", "subaction" to "search", "story" to query.replace(" ", "+"))
-        val response =
+        val response = runCatching {
             app.post(actualMainUrl, data = data, cookies = cookies.orEmpty()).document
+        }.getOrNull() ?: return emptyList()
 
         return response.select("a.poster.grid-item").map {
             it.toSearchResult()
         }
     }
 
-    override suspend fun load(url: String): LoadResponse {
+    override suspend fun load(url: String): LoadResponse? {
         val (cookies, actualMainUrl) = getActualMainUrlAndCookies()
-        val fixedUrl = actualMainUrl + URI.create(url).rawPath
+        val fixedUrl = runCatching { actualMainUrl + URI.create(url).rawPath }.getOrNull()
+            ?: return null
 
-        val document = app.get(fixedUrl, cookies = cookies.orEmpty()).document
+        val document = runCatching {
+            app.get(fixedUrl, cookies = cookies.orEmpty()).document
+        }.getOrNull() ?: return null
         val title = document.selectFirst("div.page__subcols.d-flex h1")?.text() ?: "Unknown"
         val description = document.selectFirst("div.page__text")?.text()
         val poster =

@@ -1,8 +1,10 @@
 package com.icebergg.cs3.sto
 
+import com.icebergg.cs3.shared.DevideoSrc
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
+import com.lagradost.cloudstream3.LoadResponse.Companion.addImdbId
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.SearchResponse
@@ -200,6 +202,8 @@ open class StoProvider : MainAPI() {
         return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
             this.posterUrl = poster
             this.plot = plot
+            // IMDb-ID steht ohnehin schon im HTML (fuer den Player benoetigt).
+            if (imdb != null) addImdbId(imdb)
         }
     }
 
@@ -227,8 +231,8 @@ open class StoProvider : MainAPI() {
         for (el in doc.select("[data-link], a[href]")) {
             val raw = el.attr("data-link").ifBlank { el.attr("href") }
             if (!raw.startsWith("http")) continue
-            loadExtractor(raw, data, subtitleCallback) { callback(it) }
-            found = true
+            // HosterResolver loest VOE-Kurzlinks und Vorschalt-Seiten (iframe) auf.
+            if (HosterResolver.resolve(raw, data, subtitleCallback) { callback(it) }) found = true
         }
         return found
     }

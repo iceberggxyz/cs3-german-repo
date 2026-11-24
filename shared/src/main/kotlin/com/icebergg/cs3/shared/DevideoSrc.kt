@@ -1,9 +1,10 @@
-package com.icebergg.cs3.sto
+package com.icebergg.cs3.shared
 
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.JsUnpacker
 import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.utils.newExtractorLink
@@ -12,6 +13,11 @@ import org.jsoup.Jsoup
 /**
  * Löst einen `devideosrc.co`-Player auf.
  *
+ * **Gemeinsame Quelle**: Diese Datei wird per Gradle-Source-Set in `sto` und
+ * `streamcloud` eingebunden (siehe `sourceSets` in den jeweiligen
+ * `build.gradle.kts`). Änderungen wirken damit in beiden Plugins gleichzeitig –
+ * es gibt keine Kopien mehr, die auseinanderlaufen können.
+ *
  * Es gibt zwei Player-Varianten:
  *  - **Film**: `POST /api/embed-links` mit `{ type, id, token }` aus dem Inline-Skript.
  *  - **Serie**: `POST /api/resolve` mit `{ type, id, season, episode, mode, token }`
@@ -19,7 +25,7 @@ import org.jsoup.Jsoup
  *
  * Die Antwort enthält ausschließlich Embed-URLs (dr0pstream.com, superplayer.ws, …).
  * Diese Seiten liefern ihren JW-Player-Config **Dean-Edwards-gepackt**
- * (`eval(function(p,a,c,k,e,d){…})`) aus. Deshalb wird hier entpackt und die
+ * (`eval(function(p,a,c,k,e,d){…})`). Deshalb wird hier entpackt und die
  * `master.m3u8` direkt extrahiert. Der CDN antwortet ohne `Referer` mit HTTP 403,
  * der Referer wird daher am [ExtractorLink] mitgegeben.
  */
@@ -161,6 +167,8 @@ object DevideoSrc {
                 source = sourceName,
                 name = if (quality > 0) "$sourceName ${quality}p" else sourceName,
                 url = hls,
+                // DevideoSrc liefert ausschliesslich Master-Playlists.
+                type = ExtractorLinkType.M3U8,
             ) {
                 this.referer = referer
                 this.quality = quality
@@ -203,6 +211,7 @@ object DevideoSrc {
         val ok: Boolean = false,
         val type: String? = null,
         val title: String? = null,
+        val imdb_id: String? = null,
         val sources: List<EmbedSource>? = null,
     )
 

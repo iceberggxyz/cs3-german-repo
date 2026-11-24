@@ -17,6 +17,15 @@ https://raw.githubusercontent.com/iceberggxyz/cs3-german-repo/main/repo.json
 
 Updates werden von CloudStream automatisch angeboten.
 
+### Warum ein Update manchmal nicht sofort erscheint
+
+- Die Plugin-Liste wird **15 Minuten** zwischengespeichert. Nach einem neuen
+  Build dauert es also bis zu einer Viertelstunde, bis die App sie sieht.
+- CloudStream prüft beim Download den in `plugins.json` hinterlegten SHA-256.
+  Passt er nicht zur `.cs3`, bricht die Installation mit
+  `Extension hash mismatch` ab. Deshalb werden beide Dateien immer im selben
+  Commit veröffentlicht (siehe `.github/workflows/build.yml`).
+
 ## DNS over HTTPS aktivieren (wichtig)
 
 Mehrere Quellen sind in Deutschland per DNS gesperrt – die Seiten laufen also,
@@ -40,7 +49,6 @@ Ohne DoH bleiben `filmpalast.to` und `serienstream.si` (s.to) unerreichbar.
 | KKiste         | Filme & Serien  |                      |
 | s.to           | Serien          | benötigt DoH         |
 | StreamCloud    | Filme & Serien  |                      |
-| Burning Series | Serien          | derzeit nicht verfügbar |
 | Kinox          | Filme & Serien  | derzeit nicht verfügbar |
 | MegaKino       | Filme & Serien  | derzeit nicht verfügbar |
 
