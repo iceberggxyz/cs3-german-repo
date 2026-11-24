@@ -1,0 +1,6 @@
+<!doctype html><meta charset="utf-8">
+    <script>
+    fetch("/index.php?yg=token",{credentials:"include"})
+      .then(function(){ location.replace("/films/6667-hokum.html") })
+      .catch(function(){ location.reload() });
+    </script>

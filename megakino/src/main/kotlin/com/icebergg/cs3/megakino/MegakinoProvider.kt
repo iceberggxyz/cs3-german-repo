@@ -73,6 +73,10 @@ open class Megakino : MainAPI() {
         )
     }
 
+    /** Gecachte Session: Cookies (inkl. `yg_token`) und Basis-Domain. */
+    private var sessionCache: Pair<Map<String, String>, String>? = null
+
+    /** Aktuell genutzte Basis-Domain, auch für relative Poster-/Link-Pfade. */
     private var base: String? = null
 
     /** `true`, wenn [base] das megaKino-Template (`span[data-link]`) verwendet. */
@@ -91,31 +95,77 @@ open class Megakino : MainAPI() {
         "documentary" to "Dokus",
     )
 
-    /** Ermittelt einmalig die erreichbare Installation. */
-    private suspend fun ensureBase(): String {
-        base?.let { return it }
+    /**
+     * Ermittelt einmalig Domain **und** Session-Cookies.
+     *
+     * `megakino29.com` schützt jede Seite mit einem Zwei-Schritt-Handshake: ohne
+     * Cookie `yg_token` liefert der Server nur ein 243-Byte-Stub
+     * (`fetch("/index.php?yg=token").then(() => location.replace(...))`).
+     * Der Token wird deshalb vor dem ersten Seitenaufruf geholt.
+     */
+    private suspend fun session(): Pair<Map<String, String>, String> {
+        sessionCache?.let { return it }
 
-        val dle = runCatching { app.get("$DLE_BASE/films/").text }.getOrNull()
-        if (dle != null && dle.contains("/films/")) {
-            base = DLE_BASE
+        val dleCookies = tokenOf(DLE_BASE)
+        val dle = runCatching { app.get("$DLE_BASE/films/", cookies = dleCookies).text }.getOrNull()
+        if (dle != null && dle.contains("/films/") && !isStub(dle)) {
             altTemplate = false
+            base = DLE_BASE
+            val s = dleCookies to DLE_BASE
+            sessionCache = s
             println("[MegaKino] base=$DLE_BASE (popcornie)")
-            return DLE_BASE
+            return s
         }
 
         val alt = runCatching { app.get("$ALT_BASE/kinofilme-online/").text }.getOrNull()
         if (alt != null && alt.contains("data-link")) {
-            base = ALT_BASE
             altTemplate = true
+            base = ALT_BASE
+            val s = emptyMap<String, String>() to ALT_BASE
+            sessionCache = s
             println("[MegaKino] base=$ALT_BASE (megaKino)")
-            return ALT_BASE
+            return s
         }
 
         println("[MegaKino] keine Domain erreichbar, Fallback=$DLE_BASE")
-        base = DLE_BASE
         altTemplate = false
-        return DLE_BASE
+        base = DLE_BASE
+        val s = dleCookies to DLE_BASE
+        sessionCache = s
+        return s
     }
+
+    /** Holt den `yg_token`-Cookie (Antwort ist ein leeres 204). */
+    private suspend fun tokenOf(baseUrl: String): Map<String, String> =
+        runCatching { app.get("$baseUrl/index.php?yg=token").cookies }.getOrDefault(emptyMap())
+
+    /** Erneuert den Token (Gültigkeit: 15 Minuten) und liefert die neuen Cookies. */
+    private suspend fun refreshToken(baseUrl: String): Map<String, String> {
+        val fresh = tokenOf(baseUrl)
+        if (fresh.isNotEmpty()) {
+            sessionCache = fresh to baseUrl
+            println("[MegaKino] token erneuert")
+        }
+        return fresh
+    }
+
+    /** GET über die gecachte Session, mit einem Retry bei abgelaufenem Token. */
+    private suspend fun pageOf(url: String): Document? {
+        var cookies = session().first
+        var body = runCatching { app.get(url, cookies = cookies).text }.getOrNull()
+
+        if (isStub(body)) {
+            cookies = refreshToken(base ?: DLE_BASE)
+            body = runCatching { app.get(url, cookies = cookies).text }.getOrNull()
+        }
+
+        val html = body ?: return null
+        return runCatching { org.jsoup.Jsoup.parse(html, url) }.getOrNull()
+    }
+
+    /** Erkennt den Token-Stub, der ohne gültigen Cookie ausgeliefert wird. */
+    private fun isStub(html: String?): Boolean =
+        html == null || (html.length < 800 && html.contains("location.replace"))
 
     /** Katalog-Pfad je Template. */
     private fun listUrl(baseUrl: String, data: String, page: Int): String {
@@ -137,10 +187,10 @@ open class Megakino : MainAPI() {
     }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val baseUrl = ensureBase()
+        val baseUrl = session().second
         val url = listUrl(baseUrl, request.data, page)
 
-        val document = runCatching { app.get(url).document }.getOrNull()
+        val document = pageOf(url)
             ?: return newHomePageResponse(
                 list = HomePageList(request.name, emptyList(), isHorizontalImages = false),
                 hasNext = false,
@@ -156,17 +206,19 @@ open class Megakino : MainAPI() {
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
-        val baseUrl = ensureBase()
+        val baseUrl = session().second
         if (altTemplate) {
             println("[MegaKino] Suche auf $ALT_BASE durch Cloudflare blockiert")
             return emptyList()
         }
 
+        val cookies = session().first
         val document = runCatching {
             app.post(
                 baseUrl,
                 // Die Suche erwartet das Wort unkodiert; ApiClient kodiert selbst.
                 data = mapOf("do" to "search", "subaction" to "search", "story" to query),
+                cookies = cookies,
             ).document
         }.getOrNull() ?: return emptyList()
 
@@ -174,8 +226,8 @@ open class Megakino : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse? {
-        val baseUrl = ensureBase()
-        val document = runCatching { app.get(url).document }.getOrNull() ?: return null
+        val baseUrl = session().second
+        val document = pageOf(url) ?: return null
 
         val title = document.selectFirst("h1, article h2")?.text()?.trim()
             ?.takeIf { it.isNotBlank() } ?: return null

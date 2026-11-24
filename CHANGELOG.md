@@ -8,6 +8,10 @@ Alle nennenswerten Änderungen an diesem Repository.
   `megakino29.com` (DataLife Engine, Template `popcornie-dark`). Streams stehen
   pro Hoster als Iframe mit `data-src` in der Detailseite, Serien als
   `select#ep1…epN`. Der alte `gxplayer`-Pfad entfällt damit vollständig.
+- `megakino29.com` schützt jede Seite mit einem `yg_token`-Cookie-Handshake
+  (15 Minuten gültig). Ohne Token liefert der Server nur ein 243-Byte-Stub
+  (`location.replace(...)`); der Provider holt den Token vorab und erneuert ihn
+  bei Bedarf automatisch.
 - **MegaKino-Mirror `1megakino.cc`** (Template `megaKino`): Hoster-Ziele stehen
   als `span[data-link]` (devideosrc/Vidara/VOE/FrStream). Nur Startseite,
   Detailseiten und Streams – die Suche ist dort durch Cloudflare-Turnstile
