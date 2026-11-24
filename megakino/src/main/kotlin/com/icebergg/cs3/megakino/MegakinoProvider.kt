@@ -165,6 +165,7 @@ open class Megakino : MainAPI() {
         val document = runCatching {
             app.post(
                 baseUrl,
+                // Die Suche erwartet das Wort unkodiert; ApiClient kodiert selbst.
                 data = mapOf("do" to "search", "subaction" to "search", "story" to query),
             ).document
         }.getOrNull() ?: return emptyList()
