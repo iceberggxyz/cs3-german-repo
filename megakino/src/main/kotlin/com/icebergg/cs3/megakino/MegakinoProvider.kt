@@ -23,6 +23,7 @@ import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.lagradost.cloudstream3.utils.AppUtils.toJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
+import kotlinx.coroutines.delay
 import org.jsoup.nodes.Document
 
 /**
@@ -107,7 +108,9 @@ open class Megakino : MainAPI() {
         sessionCache?.let { return it }
 
         val dleCookies = tokenOf(DLE_BASE)
-        val dle = runCatching { app.get("$DLE_BASE/films/", cookies = dleCookies).text }.getOrNull()
+        // Bewusst die Startseite prüfen: `/films/` wird gleich als Katalog genutzt
+        // und soll nicht schon hier im Antwort-Cache landen.
+        val dle = fetch("$DLE_BASE/", dleCookies)
         if (dle != null && dle.contains("/films/") && !isStub(dle)) {
             altTemplate = false
             base = DLE_BASE
@@ -135,69 +138,86 @@ open class Megakino : MainAPI() {
         return s
     }
 
+    /** GET ohne Antwort-Cache – der Token-Stub darf nie zwischengespeichert werden. */
+    private suspend fun fetch(url: String, cookies: Map<String, String>): String? =
+        runCatching { app.get(url, cookies = cookies, cacheTime = 0).text }.getOrNull()
+
     /** Holt den `yg_token`-Cookie (Antwort ist ein leeres 204). */
     private suspend fun tokenOf(baseUrl: String): Map<String, String> =
-        runCatching { app.get("$baseUrl/index.php?yg=token").cookies }.getOrDefault(emptyMap())
+        runCatching { app.get("$baseUrl/index.php?yg=token", cacheTime = 0).cookies }
+            .getOrDefault(emptyMap())
 
     /** Erneuert den Token (Gültigkeit: 15 Minuten) und liefert die neuen Cookies. */
     private suspend fun refreshToken(baseUrl: String): Map<String, String> {
         val fresh = tokenOf(baseUrl)
         if (fresh.isNotEmpty()) {
             sessionCache = fresh to baseUrl
-            println("[MegaKino] token erneuert")
+            println("[MegaKino] Token erneuert")
         }
         return fresh
     }
 
-    /** GET über die gecachte Session, mit einem Retry bei abgelaufenem Token. */
+    /**
+     * GET über die Session. Der Token läuft nach 15 Minuten ab, deshalb wird bei
+     * einem Stub bis zu dreimal ein neuer Token geholt.
+     */
     private suspend fun pageOf(url: String): Document? {
         var cookies = session().first
-        var body = runCatching { app.get(url, cookies = cookies).text }.getOrNull()
 
-        if (isStub(body)) {
+        for (attempt in 1..3) {
+            val body = fetch(url, cookies)
+            if (!isStub(body)) {
+                return body?.let { runCatching { org.jsoup.Jsoup.parse(it, url) }.getOrNull() }
+            }
+            println("[MegaKino] Stub für $url (Versuch $attempt) – Token wird erneuert")
             cookies = refreshToken(base ?: DLE_BASE)
-            body = runCatching { app.get(url, cookies = cookies).text }.getOrNull()
+            delay(400)
         }
 
-        val html = body ?: return null
-        return runCatching { org.jsoup.Jsoup.parse(html, url) }.getOrNull()
+        println("[MegaKino] $url liefert weiterhin nur den Token-Stub")
+        return null
     }
 
     /** Erkennt den Token-Stub, der ohne gültigen Cookie ausgeliefert wird. */
     private fun isStub(html: String?): Boolean =
         html == null || (html.length < 800 && html.contains("location.replace"))
 
+    /** Katalog-Segment je Template. */
+    private fun slugOf(data: String): String = if (!altTemplate) {
+        when (data) {
+            "kinofilme" -> "kinofilme"
+            "serials" -> "serials"
+            "documentary" -> "documentary"
+            else -> "films"
+        }
+    } else {
+        when (data) {
+            "serials" -> "serienstream-deutsch"
+            "documentary" -> "dokumentation"
+            else -> "kinofilme-online"
+        }
+    }
+
     /** Katalog-Pfad je Template. */
     private fun listUrl(baseUrl: String, data: String, page: Int): String {
-        val slug = if (!altTemplate) {
-            when (data) {
-                "kinofilme" -> "kinofilme"
-                "serials" -> "serials"
-                "documentary" -> "documentary"
-                else -> "films"
-            }
-        } else {
-            when (data) {
-                "serials" -> "serienstream-deutsch"
-                "documentary" -> "dokumentation"
-                else -> "kinofilme-online"
-            }
-        }
+        val slug = slugOf(data)
         return if (page <= 1) "$baseUrl/$slug/" else "$baseUrl/$slug/page/$page/"
     }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val baseUrl = session().second
-        val url = listUrl(baseUrl, request.data, page)
+        val slug = slugOf(request.data)
 
-        val document = pageOf(url)
-            ?: return newHomePageResponse(
-                list = HomePageList(request.name, emptyList(), isHorizontalImages = false),
-                hasNext = false,
-            )
+        val candidates = mutableListOf(listUrl(baseUrl, request.data, page))
+        if (page <= 1) candidates.add("$baseUrl/$slug/page/1/")
 
-        val items = parseCards(document)
-        println("[MegaKino] $url -> ${items.size} Einträge")
+        var items = emptyList<SearchResponse>()
+        for (candidate in candidates) {
+            val document = pageOf(candidate) ?: continue
+            items = parseCards(document)
+            println("[MegaKino] $candidate -> ${items.size} Einträge")
+            if (items.isNotEmpty()) break
+        }
 
         return newHomePageResponse(
             list = HomePageList(request.name, items, isHorizontalImages = false),
