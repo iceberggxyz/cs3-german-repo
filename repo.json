@@ -1,6 +1,6 @@
 {
   "name": "IceBERGG German Streaming Repository",
-  "description": "Eigenständiges CloudStream-Repository für den deutschen Markt: AniWorld (Animes), Filmpalast, KKiste, s.to/SerienStream (Serien), StreamCloud, MegaKino, Movie2K und KinoKing. Für filmpalast.to, serienstream.si, kkiste-io.* und megakino29.com wird DNS over HTTPS benötigt.",
+  "description": "Eigenständiges CloudStream-Repository für den deutschen Markt: AniWorld (Animes), Filmpalast, KKiste, s.to/SerienStream (Serien), StreamCloud, MegaKino, Movie2K, KinoKing und HDFilme. Für filmpalast.to, serienstream.si, kkiste-io.* und megakino29.com wird DNS over HTTPS benötigt.",
   "manifestVersion": 1,
   "pluginLists": [
     "https://raw.githubusercontent.com/iceberggxyz/cs3-german-repo/builds/plugins.json"

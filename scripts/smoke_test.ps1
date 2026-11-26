@@ -190,8 +190,10 @@ function Test-HosterList {
             $r = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 30 -Headers @{ 'User-Agent' = $ua }
         }
 
-        $matches = [regex]::Matches($r.Content, $Pattern)
-        $urls = @($matches | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+        # Nicht `$matches` nennen: das ist eine automatische PowerShell-Variable
+        # (wird von -match/-replace gefuellt) und darf nicht ueberschrieben werden.
+        $hosters = [regex]::Matches($r.Content, $Pattern)
+        $urls = @($hosters | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
         $trailer = @($urls | Where-Object { $_ -match 'youtube|youtu\.be|vimeo|dailymotion|facebook' })
         $playable = @($urls | Where-Object { $_ -notmatch 'youtube|youtu\.be|vimeo|dailymotion|facebook' })
 
@@ -252,6 +254,12 @@ Test-Source -Name 'KinoKing-Detail'  -Url 'https://kinoking.cc/movie.php?id=8448
 Test-HosterList -Name 'KinoKing-Hoster' `
     -Url 'https://kinoking.cc/movie.php?id=8448' `
     -Pattern '"mirrors":\s*\[\s*"(https?://[^"]+)"'
+
+# --- HDFilme (aktuelle Domain hd-filme.today; in DE DNS-gesperrt) -----------
+# Katalog/Suche sind serverseitig (a.cv-Karten). Die eigentliche Quelle steckt
+# als devideosrc.co-Embed in den Next.js-Flight-Daten der Detailseite.
+Test-Source -Name 'HDFilme'       -Url 'https://hd-filme.today/'               -Marker 'class="cv"'
+Test-Source -Name 'HDFilme-Suche' -Url 'https://hd-filme.today/suche?q=matrix' -Marker 'class="cv"'
 
 # --- Ausgabe ---------------------------------------------------------------
 $results | Format-Table -AutoSize | Out-String -Width 200 | Write-Output

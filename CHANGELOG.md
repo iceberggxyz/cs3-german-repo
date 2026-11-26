@@ -22,6 +22,18 @@ Stream-Start je Hoster).
 
 ## Unveröffentlicht
 
+- **Neuer Provider `hdfilme`**: Katalog und Suche kommen aus dem serverseitigen
+  HTML von `hd-filme.today` (Karten `a.cv`), die eigentliche Quelle steht als
+  `devideosrc.co`-Embed in den Next.js-Flight-Daten der Detailseite. Aufgelöst
+  wird sie über den bereits vorhandenen `shared/DevideoSrc.kt` (nur Filme;
+  `hdfilme.ceo` leitet auf `hd-filme.today` weiter).
+- **`shared/MeineCloudClick.kt`**: neuer Aggregator-Extraktor für
+  `meinecloud.click` (`._player-mirrors li[data-link]`). KinoKing hat den Hoster
+  bisher als Aggregator verworfen; jetzt werden die dahinterliegenden Streams
+  aufgelöst.
+- **`shared/ExtractorRegistry.kt` erweitert**: `VidStack`, `ByseSX`,
+  `DoodLaExtractor` und `DoodToExtractor` ergänzt (jetzt 19 Extraktoren) – deckt
+  die in HDFilme und den geprüften Fremd-Quellen verwendeten Hoster ab.
 - **Neue Provider `movie2k` und `kinoking`**: beide lesen die Hoster-Links aus
   dem serverseitigen HTML (Movie2K `loadMirror('…')`/`option[value]`, KinoKing
   `const SERVERS = [...]` bzw. `allEpisodesData` je Episode) und normalisieren
@@ -43,8 +55,8 @@ Stream-Start je Hoster).
   wäre vorher als abspielbare Quelle erschienen.
 - `HosterResolver` reicht jeden Stream nur einmal durch (Dubletten über mehrere
   Hoster-Einträge).
-- **`shared/ExtractorRegistry.kt`**: die 14 Standard-Extraktoren stehen einmal
-  zentral; alle neun Plugins registrieren sie über einen Aufruf. KKiste,
+- **`shared/ExtractorRegistry.kt`**: die Standard-Extraktoren stehen einmal
+  zentral; alle zehn Plugins registrieren sie über einen Aufruf. KKiste,
   AniWorld und Kinox hatten **gar keine** Extraktoren registriert, obwohl ihre
   Stream-Pfade über `loadExtractor` laufen.
 - `smoke_test.ps1` liest jetzt die Hoster-Listen so, wie die Provider sie lesen,
