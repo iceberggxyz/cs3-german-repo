@@ -74,11 +74,8 @@ open class Movie2k : MainAPI() {
             headers = HEADERS,
             referer = mainUrl
         ).document
-        val items = document.select("a[href*=/stream/]")
-            .mapNotNull { it.toSearchResult() }
-            .distinctBy { it.url }
         return newHomePageResponse(
-            HomePageList(request.name, items, isHorizontalImages = false),
+            HomePageList(request.name, parseCards(document), isHorizontalImages = false),
             hasNext = false
         )
     }
@@ -90,24 +87,51 @@ open class Movie2k : MainAPI() {
             headers = HEADERS,
             referer = mainUrl
         ).document
-        return document.select("a[href*=/stream/]")
-            .mapNotNull { it.toSearchResult() }
-            .distinctBy { it.url }
+        return parseCards(document)
     }
 
+    /**
+     * Pro Film ist eine Tabellenzeile die Karte: links das Poster
+     * (`img[src*=image.tmdb.org]`), rechts in `h2 > a` der Titel. Unter dem Titel
+     * gibt es zusätzlich einen zweiten Link „Ansehen auf …" auf dieselbe URL.
+     *
+     * Früher wurde jeder `/stream/`-Link einzeln ausgewertet – dadurch kam der
+     * Titel aus dem einen Link, das Poster (außerhalb des `<a>`) ging verloren
+     * und beide Links erzeugten dieselbe Karte. Jetzt wird pro `tr` genau eine
+     * Karte gebaut, mit Poster und Titel aus derselben Zeile.
+     */
+    private fun parseCards(document: Document): List<SearchResponse> =
+        document.select("tr")
+            .mapNotNull { it.toSearchResult() }
+            .distinctBy { it.url }
+
     private fun Element.toSearchResult(): SearchResponse? {
-        val href = fixUrl(attr("href"))
+        val titleLink = select("a[href*='/stream/']").firstOrNull { link ->
+            val text = link.text().trim()
+            text.isNotBlank() &&
+                !text.startsWith("Ansehen", ignoreCase = true) &&
+                !text.startsWith("Stream watch", ignoreCase = true)
+        } ?: return null
+
+        val href = fixUrl(titleLink.attr("href"))
         if (!href.contains("/stream/")) return null
 
-        val strongTitle = selectFirst("strong")?.text()?.trim().orEmpty()
-        val title = strongTitle.ifBlank { text().trim() }
+        val title = titleLink.text().trim().ifBlank {
+            selectFirst("img[alt]")?.attr("alt")?.trim().orEmpty()
+        }
         if (title.isBlank()) return null
-        if (title.startsWith("Stream watch", ignoreCase = true)) return null
 
-        val poster: String? = selectFirst("img")?.let { img ->
+        val posterImg = selectFirst("img[src*='image.tmdb.org']")
+            ?: select("img").firstOrNull {
+                val alt = it.attr("alt")
+                alt.isNotBlank() && !alt.equals("Deutsch", ignoreCase = true) &&
+                    !alt.equals("Logo", ignoreCase = true)
+            }
+        val poster: String? = posterImg?.let { img ->
             val raw = img.attr("src").ifBlank { img.attr("data-src") }
             if (raw.isBlank()) null else fixUrl(raw)
         }
+
         return newMovieSearchResponse(title, href, TvType.Movie) {
             this.posterUrl = poster
         }
