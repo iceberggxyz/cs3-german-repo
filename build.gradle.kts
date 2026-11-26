@@ -85,7 +85,10 @@ subprojects {
         val implementation by configurations
 
         // Stubs für alle CloudStream-Klassen (werden NICHT in das Plugin gebündelt).
-        cloudstream("com.lagradost:cloudstream3:pre-release")
+        // JitPack liefert die Bibliothek unter com.github.recloudstream:cloudstream;
+        // die frühere Koordinate com.lagradost:cloudstream3:pre-release ist dort
+        // nicht mehr auflösbar (HTTP 404) und ließ den CI-Build scheitern.
+        cloudstream("com.github.recloudstream:cloudstream:4.9.1")
 
         // Diese Abhängigkeiten sind optional; es dürfen beliebige der von der
         // App bereitgestellten Bibliotheken verwendet werden:

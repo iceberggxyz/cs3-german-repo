@@ -45,6 +45,8 @@ jobs:
               ("KKiste-Mirror",   "https://kkiste-io.com/",                        "<article",        False),
               ("s.to",            "https://serienstream.si/",                      "/serie/",         False),
               ("StreamCloud",     "https://streamcloud.date/filme",                "/filme/",         False),
+              ("Movie2K",         "https://movie2k.cx/movies",                     "/stream/",        False),
+              ("KinoKing",        "https://kinoking.cc/?genre=current-movies",     'data-type="movie"', False),
               ("1MegaKino",       "https://1megakino.cc/kinofilme-online/",        "data-link",       False),
               ("Kinox",           "https://kinox.to/",                             "",                True),
           ]

@@ -70,8 +70,21 @@ Sichtbar wird das an zwei Stellen:
 | KKiste         | Filme & Serien  | benötigt DoH         |
 | s.to           | Serien          | benötigt DoH         |
 | StreamCloud    | Filme & Serien  |                      |
+| Movie2K        | Filme & Serien  | Hoster-Links direkt im HTML |
+| KinoKing       | Filme & Serien  | Hoster-Liste `SERVERS` und Episoden-JSON im HTML |
 | MegaKino       | Filme & Serien  | benötigt DoH, Mirror `1megakino.cc` (Suche dort per Cloudflare gesperrt) |
 | Kinox          | Filme & Serien  | derzeit nicht verfügbar, siehe unten |
+
+### Quellen ohne eigenes Plugin
+
+Diese Quellen wurden geprüft und bewusst **nicht** ausgeliefert.
+
+| Quelle | Grund |
+|---|---|
+| Aether (`aether.ist`) | Reine Next.js-Client-Shell ohne Server-Daten; PStream-Extensions antworten mit Cloudflare 403 |
+| Kinoger (`kinoger.com`) | Katalog/Suche/Detail wären parsebar, alle Player sind aber JS-SPAs (Byse, fsst, dropload) |
+| anime-loads.org | DDoS-Guard-Challenge, Streams hinter AJAX |
+| moflix-stream.xyz | Cloudflare-Interstitial „Just a moment…“ |
 
 ### Warum Kinox nicht verfügbar ist
 

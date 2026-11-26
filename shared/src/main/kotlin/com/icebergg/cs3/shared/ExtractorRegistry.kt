@@ -45,4 +45,7 @@ fun standardExtractors() = listOf(
     Upstream(),
     DoodstreamCom(),
     MixDropAg(),
+    // Eigenbau-Extraktor (gleiches Paket): Vinovo liefert die MP4-URL erst
+    // über POST /api/file/url/{code}. Genutzt von Movie2K und KinoKing.
+    Vinovo(),
 )

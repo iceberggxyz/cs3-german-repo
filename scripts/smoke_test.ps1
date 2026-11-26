@@ -242,6 +242,17 @@ Test-SourcePost -Name 'KKiste-Suche' -Url 'https://kkiste-io.ink/' `
     -Body @{ do = 'search'; subaction = 'search'; story = 'hokum' } `
     -Marker 'hokum' -FixtureName 'kkiste-suche.html'
 
+# --- Movie2K und KinoKing ---------------------------------------------------
+# Movie2K liefert Hoster-Links direkt im Detail-HTML; KinoKing eine JSON-Liste
+# `const SERVERS = [{ "mirrors": [...] }]` bzw. `allEpisodesData` je Episode.
+Test-Source -Name 'Movie2K-Filme'    -Url 'https://movie2k.cx/movies' -Marker '/stream/'
+Test-Source -Name 'Movie2K-Suche'    -Url 'https://movie2k.cx/search?q=matrix' -Marker '/stream/'
+Test-Source -Name 'KinoKing-Filme'   -Url 'https://kinoking.cc/?genre=current-movies' -Marker 'data-type="movie"'
+Test-Source -Name 'KinoKing-Detail'  -Url 'https://kinoking.cc/movie.php?id=8448' -Marker 'const SERVERS'
+Test-HosterList -Name 'KinoKing-Hoster' `
+    -Url 'https://kinoking.cc/movie.php?id=8448' `
+    -Pattern '"mirrors":\s*\[\s*"(https?://[^"]+)"'
+
 # --- Ausgabe ---------------------------------------------------------------
 $results | Format-Table -AutoSize | Out-String -Width 200 | Write-Output
 

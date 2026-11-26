@@ -14,13 +14,27 @@ Automatisch geprüft für den Build dieses Stands:
 | `plugins.json` ↔ `.cs3` | 7 von 7 Hashes identisch, lokal und auf `raw.githubusercontent.com` |
 | Versionen | aniworld 3, filmpalast 6, kinox 5, kkiste 6, megakino 7, sto 9, streamcloud 11 |
 
-Noch offen: **Anbietertest auf dem Gerät** für alle sieben Provider
+Noch offen: **Anbietertest auf dem Gerät** für alle neun Provider
 (CloudStream → Einstellungen → Erweiterungen → Anbieter testen). Ergebnis nach
-dem Lauf hier nachtragen – besonders für MegaKino (Startseite, Film, Serie) und
-KKiste (Suche, Stream-Start).
+dem Lauf hier nachtragen – besonders für MegaKino (Startseite, Film, Serie),
+KKiste (Suche, Stream-Start) sowie Movie2K und KinoKing (Suche, Laden,
+Stream-Start je Hoster).
 
 ## Unveröffentlicht
 
+- **Neue Provider `movie2k` und `kinoking`**: beide lesen die Hoster-Links aus
+  dem serverseitigen HTML (Movie2K `loadMirror('…')`/`option[value]`, KinoKing
+  `const SERVERS = [...]` bzw. `allEpisodesData` je Episode) und normalisieren
+  die Pfade, die das Seiten-JavaScript umschreibt (`/d/` → `/e/` für Vinovo,
+  Firestream, Doodstream, dsvplay; Voe-Kurzlink; Vidoza `/embed-`).
+- **`shared/Vinovo.kt`**: Extraktor für `vinovo.to` (MP4-URL über
+  `POST /api/file/url/{code}` mit `meta[name=token]` und `video[data-base]`),
+  gemeinsam genutzt statt als Modulkopie. In `standardExtractors()`
+  aufgenommen, damit Movie2K und KinoKing ihn ohne Zusatzcode registrieren.
+- **Quellenprüfung durchgeführt**: Aether ist eine Next.js-Client-Shell ohne
+  Server-Daten (Extension-API 403), Kinoger hätte parsebare Kataloge, aber nur
+  JS-Player (Byse, fsst, dropload); anime-loads.org scheitert an DDoS-Guard,
+  moflix-stream.xyz an Cloudflare. Für alle vier ist **kein** Plugin ausgeliefert.
 - **Trailer-Filter zentralisiert** (`shared/StreamFilter.kt`): verworfen werden
   YouTube, Vimeo, Dailymotion, Facebook/Instagram/TikTok, Nicht-HTTP-Schemata
   sowie Hoster-Einträge mit Label „Trailer“/„Teaser“. Geprüft wird an **beiden**
@@ -29,8 +43,8 @@ KKiste (Suche, Stream-Start).
   wäre vorher als abspielbare Quelle erschienen.
 - `HosterResolver` reicht jeden Stream nur einmal durch (Dubletten über mehrere
   Hoster-Einträge).
-- **`shared/ExtractorRegistry.kt`**: die 13 Standard-Extraktoren stehen einmal
-  zentral; alle sieben Plugins registrieren sie über einen Aufruf. KKiste,
+- **`shared/ExtractorRegistry.kt`**: die 14 Standard-Extraktoren stehen einmal
+  zentral; alle neun Plugins registrieren sie über einen Aufruf. KKiste,
   AniWorld und Kinox hatten **gar keine** Extraktoren registriert, obwohl ihre
   Stream-Pfade über `loadExtractor` laufen.
 - `smoke_test.ps1` liest jetzt die Hoster-Listen so, wie die Provider sie lesen,
