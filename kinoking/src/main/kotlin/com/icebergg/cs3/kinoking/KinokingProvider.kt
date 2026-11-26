@@ -68,9 +68,13 @@ open class Kinoking : MainAPI() {
         private val VIDOZA_PLAIN = Regex("""vidoza\.net/([a-z0-9]+)\.html""", RegexOption.IGNORE_CASE)
         private val TITLE_YEAR = Regex("""^(.*?)\s*\((\d{4})\)""")
 
-        /** Hoster, die selbst keine abspielbare Quelle liefern (Aggregatoren). */
+        /**
+         * Echte Aggregatoren, die selbst keine abspielbare Quelle liefern.
+         * `meinecloud.click` steht bewusst NICHT mehr hier: der gemeinsame
+         * Extraktor [com.icebergg.cs3.shared.MeineCloudClick] loest die dort
+         * hinterlegten Hoster auf, statt sie zu verwerfen.
+         */
         private val AGGREGATORS = listOf(
-            "meinecloud.click",
             "vidsync.xyz",
             "cinesrc.st",
             "bysezejataos.com",

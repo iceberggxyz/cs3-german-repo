@@ -1,6 +1,9 @@
 package com.icebergg.cs3.shared
 
+import com.lagradost.cloudstream3.extractors.ByseSX
+import com.lagradost.cloudstream3.extractors.DoodLaExtractor
 import com.lagradost.cloudstream3.extractors.DoodstreamCom
+import com.lagradost.cloudstream3.extractors.DoodToExtractor
 import com.lagradost.cloudstream3.extractors.FileMoon
 import com.lagradost.cloudstream3.extractors.FilemoonV2
 import com.lagradost.cloudstream3.extractors.Luluvdoo
@@ -9,6 +12,7 @@ import com.lagradost.cloudstream3.extractors.StreamTape
 import com.lagradost.cloudstream3.extractors.Upstream
 import com.lagradost.cloudstream3.extractors.VidHidePro
 import com.lagradost.cloudstream3.extractors.Vidmoly
+import com.lagradost.cloudstream3.extractors.VidStack
 import com.lagradost.cloudstream3.extractors.Vidoza
 import com.lagradost.cloudstream3.extractors.Voe
 import com.lagradost.cloudstream3.extractors.Voe1
@@ -44,8 +48,15 @@ fun standardExtractors() = listOf(
     VidHidePro(),
     Upstream(),
     DoodstreamCom(),
+    DoodLaExtractor(),
+    DoodToExtractor(),
     MixDropAg(),
+    VidStack(),
+    ByseSX(),
     // Eigenbau-Extraktor (gleiches Paket): Vinovo liefert die MP4-URL erst
     // über POST /api/file/url/{code}. Genutzt von Movie2K und KinoKing.
     Vinovo(),
+    // meinecloud.click liefert die Hoster-Links erst im zweiten Schritt
+    // (._player-mirrors li[data-link]); von KinoKing genutzt.
+    MeineCloudClick(),
 )
