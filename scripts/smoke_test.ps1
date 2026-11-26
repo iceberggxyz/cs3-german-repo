@@ -260,6 +260,7 @@ Test-HosterList -Name 'KinoKing-Hoster' `
 # als devideosrc.co-Embed in den Next.js-Flight-Daten der Detailseite.
 Test-Source -Name 'HDFilme'       -Url 'https://hd-filme.today/'               -Marker 'class="cv"'
 Test-Source -Name 'HDFilme-Suche' -Url 'https://hd-filme.today/suche?q=matrix' -Marker 'class="cv"'
+Test-Source -Name 'HDFilme-Serie' -Url 'https://hd-filme.today/serie/84773-der-herr-der-ringe-die-ringe-der-macht-stream' -Marker 'season_number'
 
 # --- Ausgabe ---------------------------------------------------------------
 $results | Format-Table -AutoSize | Out-String -Width 200 | Write-Output

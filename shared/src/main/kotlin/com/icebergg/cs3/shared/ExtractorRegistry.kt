@@ -9,6 +9,7 @@ import com.lagradost.cloudstream3.extractors.FilemoonV2
 import com.lagradost.cloudstream3.extractors.Luluvdoo
 import com.lagradost.cloudstream3.extractors.MixDropAg
 import com.lagradost.cloudstream3.extractors.StreamTape
+import com.lagradost.cloudstream3.extractors.Supervideo
 import com.lagradost.cloudstream3.extractors.Upstream
 import com.lagradost.cloudstream3.extractors.VidHidePro
 import com.lagradost.cloudstream3.extractors.Vidmoly
@@ -47,6 +48,7 @@ fun standardExtractors() = listOf(
     Luluvdoo(),
     VidHidePro(),
     Upstream(),
+    Supervideo(),
     DoodstreamCom(),
     DoodLaExtractor(),
     DoodToExtractor(),

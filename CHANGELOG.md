@@ -23,17 +23,20 @@ Stream-Start je Hoster).
 ## Unveröffentlicht
 
 - **Neuer Provider `hdfilme`**: Katalog und Suche kommen aus dem serverseitigen
-  HTML von `hd-filme.today` (Karten `a.cv`), die eigentliche Quelle steht als
-  `devideosrc.co`-Embed in den Next.js-Flight-Daten der Detailseite. Aufgelöst
-  wird sie über den bereits vorhandenen `shared/DevideoSrc.kt` (nur Filme;
-  `hdfilme.ceo` leitet auf `hd-filme.today` weiter).
+  HTML von `hd-filme.today` (Karten `a.cv`). Filme nutzen das
+  `devideosrc.co/custom/movie/tt…`-Embed; Serien bekommen je Episode ein
+  `custom/serial/tt…/{season}/{episode}`, gebaut aus der IMDb-ID und der
+  `episodi`-Liste (`season_number`/`episode_number`). Beide Formen werden über
+  den vorhandenen `shared/DevideoSrc.kt` aufgelöst (`hdfilme.ceo` leitet auf
+  `hd-filme.today` weiter).
 - **`shared/MeineCloudClick.kt`**: neuer Aggregator-Extraktor für
   `meinecloud.click` (`._player-mirrors li[data-link]`). KinoKing hat den Hoster
   bisher als Aggregator verworfen; jetzt werden die dahinterliegenden Streams
   aufgelöst.
 - **`shared/ExtractorRegistry.kt` erweitert**: `VidStack`, `ByseSX`,
-  `DoodLaExtractor` und `DoodToExtractor` ergänzt (jetzt 19 Extraktoren) – deckt
-  die in HDFilme und den geprüften Fremd-Quellen verwendeten Hoster ab.
+  `DoodLaExtractor`, `DoodToExtractor` und `Supervideo` ergänzt (jetzt 20
+  Extraktoren). Alle zehn Provider registrieren damit denselben vollständigen
+  Satz; KinoKings frühere Einzelregistrierung von Supervideo ist entfallen.
 - **Neue Provider `movie2k` und `kinoking`**: beide lesen die Hoster-Links aus
   dem serverseitigen HTML (Movie2K `loadMirror('…')`/`option[value]`, KinoKing
   `const SERVERS = [...]` bzw. `allEpisodesData` je Episode) und normalisieren

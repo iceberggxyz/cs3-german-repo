@@ -72,7 +72,7 @@ Sichtbar wird das an zwei Stellen:
 | StreamCloud    | Filme & Serien  |                      |
 | Movie2K        | Filme & Serien  | Hoster-Links direkt im HTML |
 | KinoKing       | Filme & Serien  | Hoster-Liste `SERVERS` und Episoden-JSON im HTML |
-| HDFilme        | Filme           | Auflösung über `devideosrc.co` |
+| HDFilme        | Filme & Serien  | Auflösung über `devideosrc.co` (Serien je Episode) |
 | MegaKino       | Filme & Serien  | benötigt DoH, Mirror `1megakino.cc` (Suche dort per Cloudflare gesperrt) |
 | Kinox          | Filme & Serien  | derzeit nicht verfügbar, siehe unten |
 

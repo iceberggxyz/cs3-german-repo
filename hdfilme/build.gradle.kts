@@ -9,7 +9,7 @@ android {
 
 cloudstream {
     language = "de"
-    description = "HDFilme - deutsche Filme in HD (Aufloesung ueber devideosrc.co)"
+    description = "HDFilme - deutsche Filme und Serien in HD (Aufloesung ueber devideosrc.co)"
     authors = listOf("IceBERGG")
 
     /**
@@ -22,7 +22,7 @@ cloudstream {
     // Katalog und Detailseiten liefern serverseitig HTML; die eigentliche
     // Quelle ist ein devideosrc.co-Embed, den der gemeinsame DevideoSrc loest.
     status = 1
-    tvTypes = listOf("Movie")
+    tvTypes = listOf("Movie", "TvSeries")
 
     iconUrl = "https://www.google.com/s2/favicons?domain=https://hd-filme.today&sz=%size%"
 }
