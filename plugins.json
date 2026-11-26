@@ -1,0 +1,212 @@
+[
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=https://aniworld.to&sz=%size%",
+        "fileHash": "sha256-ac96d6103b4e56ee7428e08e742d4df2d59070d8065f64acbc5de8414d9250bb",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/iceberggxyz/cs3-german-repo",
+        "fileSize": 50758,
+        "status": 1,
+        "language": "de",
+        "authors": [
+            "IceBERGG"
+        ],
+        "tvTypes": [
+            "Anime",
+            "AnimeMovie"
+        ],
+        "version": 4,
+        "internalName": "aniworld",
+        "description": "Animes und Serien von AniWorld",
+        "url": "https://raw.githubusercontent.com/iceberggxyz/cs3-german-repo/builds/aniworld.cs3",
+        "name": "aniworld"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=https://filmpalast.to&sz=%size%",
+        "fileHash": "sha256-981cb1a28b0436060b80deb20c01b605d4c9537efb5090a1a9e2d276006eebf6",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/iceberggxyz/cs3-german-repo",
+        "fileSize": 45811,
+        "status": 1,
+        "language": "de",
+        "authors": [
+            "IceBERGG"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 7,
+        "internalName": "filmpalast",
+        "description": "Filme und Serien von Filmpalast (benoetigt DNS over HTTPS)",
+        "url": "https://raw.githubusercontent.com/iceberggxyz/cs3-german-repo/builds/filmpalast.cs3",
+        "name": "filmpalast"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=https://hd-filme.today&sz=%size%",
+        "fileHash": "sha256-f90d1457d69f4e02a4220eb92f389bf4c9861f4a8d0cbe922b9c7af1fe7fb9bb",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/iceberggxyz/cs3-german-repo",
+        "fileSize": 44694,
+        "status": 1,
+        "language": "de",
+        "authors": [
+            "IceBERGG"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 1,
+        "internalName": "hdfilme",
+        "description": "HDFilme - deutsche Filme und Serien in HD (Aufloesung ueber devideosrc.co)",
+        "url": "https://raw.githubusercontent.com/iceberggxyz/cs3-german-repo/builds/hdfilme.cs3",
+        "name": "hdfilme"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=https://kinoking.cc&sz=%size%",
+        "fileHash": "sha256-eb97b32e37da61ef5e3dee015ebf700c1dcfd3c9d4ca609130e64d58d4d43a8b",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/iceberggxyz/cs3-german-repo",
+        "fileSize": 50601,
+        "status": 1,
+        "language": "de",
+        "authors": [
+            "IceBERGG"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 1,
+        "internalName": "kinoking",
+        "description": "KinoKing - deutsche Filme und Serien (Voe, Dood, Streamtape, Mixdrop, Upstream, Vinovo ...)",
+        "url": "https://raw.githubusercontent.com/iceberggxyz/cs3-german-repo/builds/kinoking.cs3",
+        "name": "kinoking"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=https://kinox.to&sz=%size%",
+        "fileHash": "sha256-a625148b350761f9353a1ffd0108343dd95ccc77567c04fcc0c0b77c59b62e33",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/iceberggxyz/cs3-german-repo",
+        "fileSize": 44734,
+        "status": 0,
+        "language": "de",
+        "authors": [
+            "IceBERGG"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 6,
+        "internalName": "kinox",
+        "description": "Kinox - derzeit keine erreichbare Domain",
+        "url": "https://raw.githubusercontent.com/iceberggxyz/cs3-german-repo/builds/kinox.cs3",
+        "name": "kinox"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=https://kkiste-io.ink&sz=%size%",
+        "fileHash": "sha256-2928b53d1d59c655770dbd8b5f1027fae7c89f004c8c838034e6270c1a3e0a73",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/iceberggxyz/cs3-german-repo",
+        "fileSize": 50308,
+        "status": 1,
+        "language": "de",
+        "authors": [
+            "IceBERGG"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 7,
+        "internalName": "kkiste",
+        "description": "Filme und Serien von KKiste",
+        "url": "https://raw.githubusercontent.com/iceberggxyz/cs3-german-repo/builds/kkiste.cs3",
+        "name": "kkiste"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=https://megakino29.com&sz=%size%",
+        "fileHash": "sha256-ebadec804b1ca6362e812c64e2994bda47fa184f1d0227d1f0dba64ada3cf99e",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/iceberggxyz/cs3-german-repo",
+        "fileSize": 52767,
+        "status": 1,
+        "language": "de",
+        "authors": [
+            "IceBERGG"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries",
+            "Documentary"
+        ],
+        "version": 8,
+        "internalName": "megakino",
+        "description": "MegaKino - Filme und Serien (megakino29.com, Mirror 1megakino.cc)",
+        "url": "https://raw.githubusercontent.com/iceberggxyz/cs3-german-repo/builds/megakino.cs3",
+        "name": "megakino"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=https://movie2k.cx&sz=%size%",
+        "fileHash": "sha256-59704ee2fd382eb8735ccbb33aa26079d9c2cfe9e2c69c653ce38c208113df13",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/iceberggxyz/cs3-german-repo",
+        "fileSize": 49539,
+        "status": 1,
+        "language": "de",
+        "authors": [
+            "IceBERGG"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 1,
+        "internalName": "movie2k",
+        "description": "Movie2K - deutsche Filme und Serien (Voe, Doodstream, Streamtape, Mixdrop, Vinovo ...)",
+        "url": "https://raw.githubusercontent.com/iceberggxyz/cs3-german-repo/builds/movie2k.cs3",
+        "name": "movie2k"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=https://serienstream.si&sz=%size%",
+        "fileHash": "sha256-4c56e38afef56ac87832b9c5cf4ded9f9fe339f36d2d9f194c475a3302c42221",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/iceberggxyz/cs3-german-repo",
+        "fileSize": 46838,
+        "status": 1,
+        "language": "de",
+        "authors": [
+            "IceBERGG"
+        ],
+        "tvTypes": [
+            "TvSeries"
+        ],
+        "version": 10,
+        "internalName": "sto",
+        "description": "Serien von s.to / SerienStream (benoetigt DNS over HTTPS)",
+        "url": "https://raw.githubusercontent.com/iceberggxyz/cs3-german-repo/builds/sto.cs3",
+        "name": "sto"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=https://streamcloud.date&sz=%size%",
+        "fileHash": "sha256-5c4d28db1df7663e4975a4b2ce0959de54c0afa42c353a94ee10aa8ff2223d40",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/iceberggxyz/cs3-german-repo",
+        "fileSize": 47633,
+        "status": 1,
+        "language": "de",
+        "authors": [
+            "IceBERGG"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 12,
+        "internalName": "streamcloud",
+        "description": "Filme und Serien von StreamCloud",
+        "url": "https://raw.githubusercontent.com/iceberggxyz/cs3-german-repo/builds/streamcloud.cs3",
+        "name": "streamcloud"
+    }
+]
