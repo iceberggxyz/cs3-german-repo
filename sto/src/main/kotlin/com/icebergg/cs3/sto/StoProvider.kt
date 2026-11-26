@@ -92,7 +92,11 @@ open class StoProvider : MainAPI() {
             val link = fixUrl(href)
             if (!seriesRootRegex.matches(link)) return@mapNotNull null
 
-            val title = a.attr("title").trim().ifEmpty { a.text().trim() }
+            // Einige Karten (z. B. "Diese Woche gefragt") sind ein Link nur um ein
+            // Logo-<img> – ohne title und ohne Linktext. Der Name steht dann in alt.
+            val title = a.attr("title").trim()
+                .ifEmpty { a.selectFirst("img")?.attr("alt")?.trim().orEmpty() }
+                .ifEmpty { a.text().trim() }
             if (title.isEmpty()) return@mapNotNull null
 
             val img = a.selectFirst("img")
@@ -122,7 +126,9 @@ open class StoProvider : MainAPI() {
             if (!seriesRootRegex.matches(url)) continue
             if (!seen.add(url)) continue
 
-            val title = a.attr("title").trim().ifEmpty { a.text().trim() }
+            val title = a.attr("title").trim()
+                .ifEmpty { a.selectFirst("img")?.attr("alt")?.trim().orEmpty() }
+                .ifEmpty { a.text().trim() }
             if (title.isEmpty()) continue
 
             val img = a.selectFirst("img")
