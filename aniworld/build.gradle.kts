@@ -1,5 +1,5 @@
 // Versionsnummer des Plugins als Ganzzahl.
-version = 3
+version = 4
 
 // Gemeinsame Quellen (HosterResolver/DevideoSrc) mit den anderen Modulen teilen.
 android {

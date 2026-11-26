@@ -44,16 +44,34 @@ object HosterResolver {
     ): Boolean {
         val normalized = normalize(url)
 
-        if (tryExtractor(normalized, referer, subtitleCallback, callback)) return true
+        // Trailer und Nicht-Streams (YouTube & Co.) fliegen hier raus - zentral,
+        // damit kein Provider sie versehentlich als Quelle ausliefert.
+        if (!StreamFilter.isPlayable(normalized)) {
+            println("[HosterResolver] verworfen, kein Stream: $url")
+            return false
+        }
+
+        // Derselbe Stream taucht haeufig mehrfach auf (Hoster + Klon). Nur die
+        // erste Fundstelle durchreichen.
+        val emitted = HashSet<String>()
+        val deliver: (ExtractorLink) -> Unit = { link ->
+            if (emitted.add(link.url)) callback(link)
+        }
+
+        if (tryExtractor(normalized, referer, subtitleCallback, deliver)) return true
 
         val inner = runCatching { extractIframe(normalized) }.getOrNull()
         if (inner.isNullOrBlank() || inner == normalized) {
             println("[HosterResolver] keine Quelle in $url")
             return false
         }
+        if (!StreamFilter.isPlayable(inner)) {
+            println("[HosterResolver] Vorschalt-Ziel ist kein Stream: $inner")
+            return false
+        }
         println("[HosterResolver] iframe $url -> $inner")
 
-        return tryExtractor(inner, normalized, subtitleCallback, callback)
+        return tryExtractor(inner, normalized, subtitleCallback, deliver)
     }
 
     /** Schreibt VOE-Kurzlinks auf das vom Extractor erwartete Format um. */
@@ -80,8 +98,6 @@ object HosterResolver {
 
         val src = iframeRegex.find(html)?.groupValues?.get(1)?.trim() ?: return null
         if (src.isBlank()) return null
-        if (src.startsWith("about:") || src.startsWith("javascript:") || src.startsWith("#")) return null
-        if (src.contains("google") || src.contains("facebook") || src.contains("youtube")) return null
 
         val abs = when {
             src.startsWith("//") -> "https:$src"
@@ -89,7 +105,8 @@ object HosterResolver {
             src.startsWith("http") -> src
             else -> "https://$host/$src"
         }
-        return abs.takeIf { it != url }
+        // Schema- und Domain-Pruefung liegt gebuendelt im StreamFilter.
+        return abs.takeIf { it != url && StreamFilter.isPlayable(it) }
     }
 
     private fun hostOf(url: String): String =

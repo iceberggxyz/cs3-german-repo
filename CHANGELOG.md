@@ -21,6 +21,21 @@ KKiste (Suche, Stream-Start).
 
 ## Unveröffentlicht
 
+- **Trailer-Filter zentralisiert** (`shared/StreamFilter.kt`): verworfen werden
+  YouTube, Vimeo, Dailymotion, Facebook/Instagram/TikTok, Nicht-HTTP-Schemata
+  sowie Hoster-Einträge mit Label „Trailer“/„Teaser“. Geprüft wird an **beiden**
+  Stufen des `HosterResolver` – Start-URL und Vorschalt-iframe.
+  Beleg: die KKiste-Detailseite liefert 6 Hoster, davon 1 YouTube-Trailer; der
+  wäre vorher als abspielbare Quelle erschienen.
+- `HosterResolver` reicht jeden Stream nur einmal durch (Dubletten über mehrere
+  Hoster-Einträge).
+- **`shared/ExtractorRegistry.kt`**: die 13 Standard-Extraktoren stehen einmal
+  zentral; alle sieben Plugins registrieren sie über einen Aufruf. KKiste,
+  AniWorld und Kinox hatten **gar keine** Extraktoren registriert, obwohl ihre
+  Stream-Pfade über `loadExtractor` laufen.
+- `smoke_test.ps1` liest jetzt die Hoster-Listen so, wie die Provider sie lesen,
+  und meldet „n Hoster, davon m Trailer“ – ein Strukturbruch fällt damit vor dem
+  Gerätetest auf.
 - **Manifest-Fehler behoben**: `aniworld` nutzte `tvTypes = "AnimeMovies"` und
   `sto` `"Series"` – beides sind keine gültigen `TvType`-Werte (richtig:
   `AnimeMovie`, `TvSeries`). Die Plugins waren damit keinem Typ-Filter zuordenbar.

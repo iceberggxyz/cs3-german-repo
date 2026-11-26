@@ -1,6 +1,7 @@
 package com.icebergg.cs3.aniworld
 
 import android.content.Context
+import com.icebergg.cs3.shared.standardExtractors
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 import com.lagradost.cloudstream3.plugins.Plugin
 
@@ -11,7 +12,9 @@ import com.lagradost.cloudstream3.plugins.Plugin
 @CloudstreamPlugin
 class AniworldPlugin : Plugin() {
     override fun load(context: Context) {
-        // Alle Provider auf diese Weise registrieren.
         registerMainAPI(AniworldProvider())
+
+        // Hoster-Extraktoren zentral registriert (shared/ExtractorRegistry.kt).
+        standardExtractors().forEach { registerExtractorAPI(it) }
     }
 }

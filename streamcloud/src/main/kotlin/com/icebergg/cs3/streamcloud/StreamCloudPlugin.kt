@@ -1,19 +1,7 @@
 package com.icebergg.cs3.streamcloud
 
 import android.content.Context
-import com.lagradost.cloudstream3.extractors.DoodstreamCom
-import com.lagradost.cloudstream3.extractors.FileMoon
-import com.lagradost.cloudstream3.extractors.FilemoonV2
-import com.lagradost.cloudstream3.extractors.Luluvdoo
-import com.lagradost.cloudstream3.extractors.MixDropAg
-import com.lagradost.cloudstream3.extractors.StreamTape
-import com.lagradost.cloudstream3.extractors.Upstream
-import com.lagradost.cloudstream3.extractors.VidHidePro
-import com.lagradost.cloudstream3.extractors.Vidmoly
-import com.lagradost.cloudstream3.extractors.Vidoza
-import com.lagradost.cloudstream3.extractors.Voe
-import com.lagradost.cloudstream3.extractors.Voe1
-import com.lagradost.cloudstream3.extractors.Voe2
+import com.icebergg.cs3.shared.standardExtractors
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 import com.lagradost.cloudstream3.plugins.Plugin
 
@@ -33,19 +21,7 @@ class StreamCloudPlugin : Plugin() {
         registerExtractorAPI(SupervideoCom())
         registerExtractorAPI(SupervideoTv())
 
-        // Weitere Hoster für loadExtractor(...).
-        registerExtractorAPI(DoodstreamCom())
-        registerExtractorAPI(MixDropAg())
-        registerExtractorAPI(Voe())
-        registerExtractorAPI(Voe1())
-        registerExtractorAPI(Voe2())
-        registerExtractorAPI(FileMoon())
-        registerExtractorAPI(FilemoonV2())
-        registerExtractorAPI(Vidmoly())
-        registerExtractorAPI(Vidoza())
-        registerExtractorAPI(StreamTape())
-        registerExtractorAPI(Luluvdoo())
-        registerExtractorAPI(VidHidePro())
-        registerExtractorAPI(Upstream())
+        // Standard-Hoster kommen aus shared/ExtractorRegistry.kt.
+        standardExtractors().forEach { registerExtractorAPI(it) }
     }
 }

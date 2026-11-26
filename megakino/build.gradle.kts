@@ -1,5 +1,5 @@
 // Versionsnummer des Plugins als Ganzzahl.
-version = 7
+version = 8
 
 // Gemeinsame Quellen (DevideoSrc) mit sto/streamcloud teilen, statt zu kopieren.
 android {

@@ -163,6 +163,47 @@ function Test-SourcePost {
     Record -Name $Name -Status $status -Detail $detail -Url $Url
 }
 
+<#
+    Prueft die Hoster-Liste einer Detailseite so, wie der Provider sie liest.
+    Trailer (YouTube & Co.) duerfen vorkommen - sie werden vom zentralen
+    StreamFilter verworfen. Entscheidend ist, dass mindestens ein echter Hoster
+    uebrig bleibt.
+#>
+function Test-HosterList {
+    param(
+        [string]$Name,
+        [string]$Url,
+        [string]$Pattern,
+        [string]$TokenUrl
+    )
+
+    $status = 'FAIL'
+    $detail = ''
+    try {
+        if ($TokenUrl) {
+            $session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+            Invoke-WebRequest -Uri $TokenUrl -WebSession $session -UseBasicParsing -TimeoutSec 30 `
+                -Headers @{ 'User-Agent' = $ua } | Out-Null
+            $r = Invoke-WebRequest -Uri $Url -WebSession $session -UseBasicParsing -TimeoutSec 30 `
+                -Headers @{ 'User-Agent' = $ua }
+        } else {
+            $r = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 30 -Headers @{ 'User-Agent' = $ua }
+        }
+
+        $matches = [regex]::Matches($r.Content, $Pattern)
+        $urls = @($matches | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+        $trailer = @($urls | Where-Object { $_ -match 'youtube|youtu\.be|vimeo|dailymotion|facebook' })
+        $playable = @($urls | Where-Object { $_ -notmatch 'youtube|youtu\.be|vimeo|dailymotion|facebook' })
+
+        $status = if ($playable.Count -gt 0) { 'ok' } else { 'KEIN HOSTER' }
+        $detail = "$($urls.Count) Hoster, davon $($trailer.Count) Trailer (vom StreamFilter verworfen)"
+    } catch {
+        $detail = "ERR - $($_.Exception.Message)"
+    }
+
+    Record -Name $Name -Status $status -Detail $detail -Url $Url
+}
+
 # --- Startseiten -----------------------------------------------------------
 Test-Source -Name 'AniWorld'     -Url 'https://aniworld.to/'            -Marker 'carousel'          -FixtureName 'aniworld-start.html'
 Test-Source -Name 'Filmpalast'   -Url 'https://filmpalast.to/'          -Marker 'article class="liste' -FixtureName 'filmpalast-start.html' -DnsBlockedInDe
@@ -182,6 +223,17 @@ Test-SourceWithSession -Name 'MegaKino-Detail' -TokenUrl 'https://megakino29.com
     -Url 'https://megakino29.com/films/6667-hokum.html' -Marker 'film_main'
 # Katalogseite des Mirrors: Detail-Links enden auf "-stream-deutsch".
 Test-Source -Name 'MegaKino-Mirror' -Url 'https://1megakino.cc/kinofilme-online/' -Marker '-stream-deutsch'
+
+# --- Hoster-Listen (so, wie der Provider sie liest) ------------------------
+Test-HosterList -Name 'MegaKino-Hoster' -TokenUrl 'https://megakino29.com/index.php?yg=token' `
+    -Url 'https://megakino29.com/films/6667-hokum.html' `
+    -Pattern 'id="film_main"[^>]*(?:data-src|src)="([^"]+)"'
+Test-HosterList -Name '1MegaKino-Hoster' `
+    -Url 'https://1megakino.cc/26096-forgotten-island-die-vergessene-insel-stream-deutsch-kostenlos.html' `
+    -Pattern 'data-link="(https?://[^"]+)"'
+Test-HosterList -Name 'KKiste-Hoster' `
+    -Url 'https://kkiste-io.ink/24540-hokum-stream-deutsch-kostenlos.html' `
+    -Pattern 'data-link="(https?://[^"]+)"'
 
 # --- Detailseiten und POST-Suche -------------------------------------------
 Test-Source -Name 'AniWorld-Detail' -Url 'https://aniworld.to/anime/stream/one-piece' -Marker '/staffel-' -FixtureName 'aniworld-detail.html'
