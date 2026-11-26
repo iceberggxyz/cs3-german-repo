@@ -2,6 +2,23 @@
 
 Alle nennenswerten Änderungen an diesem Repository.
 
+## Prüfstand 26.11.2026
+
+Automatisch geprüft für den Build dieses Stands:
+
+| Prüfung | Ergebnis |
+|---|---|
+| `scripts/smoke_test.ps1` | 13 von 13 Prüfungen grün (2 × `skip`: Filmpalast per DNS-Sperre) |
+| MegaKino `yg_token`-Handshake | Startseite 65983 B, Detailseite enthält `film_main` |
+| KKiste-POST-Suche | 150326 B, Treffer `hokum` enthalten |
+| `plugins.json` ↔ `.cs3` | 7 von 7 Hashes identisch, lokal und auf `raw.githubusercontent.com` |
+| Versionen | aniworld 3, filmpalast 6, kinox 5, kkiste 6, megakino 7, sto 9, streamcloud 11 |
+
+Noch offen: **Anbietertest auf dem Gerät** für alle sieben Provider
+(CloudStream → Einstellungen → Erweiterungen → Anbieter testen). Ergebnis nach
+dem Lauf hier nachtragen – besonders für MegaKino (Startseite, Film, Serie) und
+KKiste (Suche, Stream-Start).
+
 ## Unveröffentlicht
 
 - **Manifest-Fehler behoben**: `aniworld` nutzte `tvTypes = "AnimeMovies"` und
