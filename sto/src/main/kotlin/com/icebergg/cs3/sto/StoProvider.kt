@@ -1,10 +1,13 @@
 package com.icebergg.cs3.sto
 
 import com.icebergg.cs3.shared.DevideoSrc
+import com.icebergg.cs3.shared.HosterResolver
+import com.icebergg.cs3.shared.Requests
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.LoadResponse.Companion.addImdbId
+import com.lagradost.cloudstream3.ErrorLoadingException
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.SearchResponse
@@ -63,15 +66,14 @@ open class StoProvider : MainAPI() {
     private suspend fun ensureBase(): String {
         if (baseResolved) return mainUrl
         for (mirror in MIRRORS) {
-            val ok = runCatching {
-                app.get("$mirror/").text.contains("/serie/")
-            }.getOrDefault(false)
-            if (ok) {
+            val html = Requests.text("$mirror/")
+            if (html != null && html.contains("/serie/")) {
                 mainUrl = mirror
                 baseResolved = true
                 println("[s.to] base=$mirror")
                 return mainUrl
             }
+            println("[s.to] $mirror liefert keine Serien-Links")
         }
         baseResolved = true
         println("[s.to] no mirror reachable, fallback=$mainUrl")
@@ -81,7 +83,7 @@ open class StoProvider : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         ensureBase()
         val url = if (page <= 1) "$mainUrl/" else "$mainUrl/?page=$page"
-        val doc = runCatching { app.get(url, referer = "$mainUrl/").document }.getOrNull()
+        val doc = Requests.doc(url, referer = "$mainUrl/")
             ?: return newHomePageResponse(request.name, emptyList())
 
         val items = doc.select("a[href*='/serie/']").mapNotNull { a ->
@@ -107,9 +109,8 @@ open class StoProvider : MainAPI() {
     override suspend fun search(query: String): List<SearchResponse> {
         ensureBase()
         val encoded = URLEncoder.encode(query, "UTF-8")
-        val doc = runCatching {
-            app.get("$mainUrl/suche?q=$encoded", referer = "$mainUrl/").document
-        }.getOrNull() ?: return emptyList()
+        val doc = Requests.doc("$mainUrl/suche?q=$encoded", referer = "$mainUrl/")
+            ?: throw ErrorLoadingException("[s.to] Suche fehlgeschlagen: $mainUrl nicht erreichbar")
 
         val results = mutableListOf<SearchResponse>()
         val seen = HashSet<String>()

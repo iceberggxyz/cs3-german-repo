@@ -47,14 +47,19 @@ und `megakino29.com` unerreichbar.
 
 ### Wenn eine Quelle keine Ergebnisse liefert
 
-Liefert ein Provider trotz aktivem DoH nichts (Suche leer, Startseite leer,
-Anbietertest bricht ab), zuerst **den Resolver wechseln** – nicht den Provider
-neu installieren. Der Grund ist fast immer die Namensauflösung, nicht der Code:
-ein blockierter Host liefert keine Antwort, und die Provider behandeln das
-bewusst defensiv (leere Liste statt Absturz).
+Liefert ein Provider trotz aktivem DoH nichts oder bricht der Anbietertest ab,
+zuerst **den Resolver wechseln** – nicht den Provider neu installieren. Der
+Grund ist fast immer die Namensauflösung, nicht der Code.
 
-Sichtbar wird das im Log an Zeilen wie `[KKiste] no working mirror` – dort
-scheitert die Mirror-Prüfung, bevor überhaupt gesucht wird.
+Sichtbar wird das an zwei Stellen:
+
+- In der App als Fehlermeldung mit Provider-Präfix, z. B.
+  `[KKiste] Suche fehlgeschlagen: … nicht erreichbar`. Die Provider melden
+  Netzwerkfehler bewusst als Fehler (`ErrorLoadingException`) und nicht als
+  leere Trefferliste – „nichts gefunden“ und „Quelle kaputt“ sind zwei
+  verschiedene Dinge.
+- Im Log an Zeilen wie `[Requests] https://kkiste-io.ink/ -> UnknownHostException`
+  oder `[KKiste] kkiste-io.ink liefert keine Detail-Links`.
 
 ## Enthaltene Provider
 
@@ -62,11 +67,20 @@ scheitert die Mirror-Prüfung, bevor überhaupt gesucht wird.
 |----------------|-----------------|----------------------|
 | AniWorld       | Animes & Serien |                      |
 | Filmpalast     | Filme & Serien  | benötigt DoH         |
-| KKiste         | Filme & Serien  |                      |
+| KKiste         | Filme & Serien  | benötigt DoH         |
 | s.to           | Serien          | benötigt DoH         |
 | StreamCloud    | Filme & Serien  |                      |
-| MegaKino       | Filme & Serien  | Mirror: `1megakino.cc` (Suche dort per Cloudflare gesperrt) |
-| Kinox          | Filme & Serien  | derzeit nicht verfügbar |
+| MegaKino       | Filme & Serien  | benötigt DoH, Mirror `1megakino.cc` (Suche dort per Cloudflare gesperrt) |
+| Kinox          | Filme & Serien  | derzeit nicht verfügbar, siehe unten |
+
+### Warum Kinox nicht verfügbar ist
+
+Kinox ist nicht per Code kaputt, sondern nicht mehr erreichbar. Geprüft wurden
+16 Kandidaten-Domains (`kinox.to`, `kinox.sx`, `kinox.tv`, `kinox.am` und
+weitere) – alle antworten nicht, auch nicht über DoH. Das Modul bleibt trotzdem
+im Repository: sollte die Seite unter einer neuen Domain zurückkehren, genügt
+ein Eintrag in `MIRRORS` und ein Status-Wechsel. Solange `status = 0` gesetzt
+ist, wird das Plugin als „down“ angezeigt.
 
 > Alle Inhalte stammen von den jeweiligen Anbietern. Dieses Repository stellt
 > lediglich die Schnittstelle für CloudStream bereit.

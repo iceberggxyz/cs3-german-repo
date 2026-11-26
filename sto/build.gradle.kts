@@ -1,5 +1,5 @@
 // Versionsnummer des Plugins als Ganzzahl.
-version = 8
+version = 9
 
 // Gemeinsame Quellen (DevideoSrc) mit streamcloud teilen, statt zu kopieren.
 android {
@@ -19,7 +19,8 @@ cloudstream {
      * 3: Nur Beta
      */
     status = 1
-    tvTypes = listOf("Series")
+    // Gueltiger TvType-Wert ist "TvSeries", nicht "Series".
+    tvTypes = listOf("TvSeries")
 
     iconUrl = "https://www.google.com/s2/favicons?domain=https://serienstream.si&sz=%size%"
 }

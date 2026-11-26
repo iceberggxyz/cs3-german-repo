@@ -1,4 +1,4 @@
-package com.icebergg.cs3.filmpalast
+package com.icebergg.cs3.shared
 
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.app
@@ -6,22 +6,23 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.loadExtractor
 
 /**
- * Zentrale Auflösung der Hoster-Kette.
+ * Zentrale Auflösung der Hoster-Kette für alle Provider dieses Repositories.
  *
- * Auf Filmpalast stehen drei Arten von Zielen:
+ * **Gemeinsame Quelle**: Diese Datei wird per Gradle-Source-Set in alle
+ * Plugin-Module eingebunden (siehe `sourceSets` in den jeweiligen
+ * `build.gradle.kts`). Vorher lag sie sechsmal als Kopie in den Modulen – eine
+ * Änderung an der Hoster-Kette musste also an sechs Stellen erfolgen.
  *
- *  1. **Direkter Hoster** – z. B. `https://voe.sx/e/abc123`. Hier genügt
- *     [loadExtractor].
+ * Ablauf:
+ *  1. **Direkter Hoster** – z. B. `https://voe.sx/e/abc123`. Hier genügt [loadExtractor].
  *  2. **VOE-Kurzformat** – `https://voe.sx/abc123` (ohne `/e/`). Der Extractor
  *     erwartet das Langformat, deshalb wird umgeschrieben.
- *  3. **Vorschalt-Seite** – z. B. `https://vidara.to/v/abc123`. Die Seite enthält
+ *  3. **Vorschalt-Seite** – z. B. `https://vidara.to/e/abc123`. Die Seite enthält
  *     selbst keinen Stream, sondern setzt per HTML einen iframe auf den echten
- *     Hoster (`<iframe src="https://fhjabs.com/e/abc123">`). Dieser iframe wird
- *     ausgelesen und anschließend erneut aufgelöst.
+ *     Hoster. Dieser iframe wird ausgelesen und erneut aufgelöst.
  *
  * Bewusst **nicht** enthalten ist ein eigener Entschlüssler für den
- * VOE-JSON-Payload (`["CR1J#&MKyE^^…"]`). Dafür ist der Voe-Extractor der App
- * zuständig – er wird gepflegt und bricht nicht, wenn sich das Format ändert.
+ * VOE-JSON-Payload. Dafür ist der Voe-Extractor der App zuständig.
  */
 object HosterResolver {
 
@@ -31,8 +32,9 @@ object HosterResolver {
     private val iframeRegex = Regex("""(?is)<iframe[^>]+src\s*=\s*["']([^"']+)["']""")
 
     /**
-     * Versucht [url] aufzulösen. Gibt `true` zurück, sobald mindestens eine
-     * Quelle über [callback] gemeldet wurde.
+     * Löst [url] vollständig auf und gibt die gefundenen Links über [callback] aus.
+     *
+     * @return `true`, wenn mindestens eine Quelle gefunden wurde.
      */
     suspend fun resolve(
         url: String,
@@ -42,10 +44,8 @@ object HosterResolver {
     ): Boolean {
         val normalized = normalize(url)
 
-        // 1) Direkt versuchen (deckt VOE, Streamtape, Doodstream, Filemoon, … ab).
         if (tryExtractor(normalized, referer, subtitleCallback, callback)) return true
 
-        // 2) Vorschalt-Seite: iframe auf den echten Hoster auslesen.
         val inner = runCatching { extractIframe(normalized) }.getOrNull()
         if (inner.isNullOrBlank() || inner == normalized) {
             println("[HosterResolver] keine Quelle in $url")
@@ -73,10 +73,6 @@ object HosterResolver {
         loadExtractor(url, referer, subtitleCallback) { callback(it) }
     }.getOrDefault(false)
 
-    /**
-     * Liest den ersten brauchbaren `<iframe src="…">` einer Seite.
-     * Relative und protokoll-relative Ziele werden aufgelöst.
-     */
     private suspend fun extractIframe(url: String): String? {
         val host = hostOf(url)
         val html = runCatching { app.get(url, referer = "https://$host/").text }.getOrNull()

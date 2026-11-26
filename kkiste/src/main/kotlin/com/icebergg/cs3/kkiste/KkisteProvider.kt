@@ -1,9 +1,13 @@
 package com.icebergg.cs3.kkiste
 
+import com.icebergg.cs3.shared.HosterResolver
+import com.icebergg.cs3.shared.Requests
+
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.LoadResponse.Companion.addImdbId
+import com.lagradost.cloudstream3.ErrorLoadingException
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.SearchResponse
@@ -72,13 +76,14 @@ open class KkisteProvider : MainAPI() {
     private suspend fun ensureBase(): String {
         if (baseResolved) return mainUrl
         for (mirror in MIRRORS) {
-            val html = runCatching { app.get("$mirror/").text }.getOrNull() ?: continue
+            val html = Requests.text("$mirror/") ?: continue
             if (DETAIL_REGEX.containsMatchIn(html)) {
                 mainUrl = mirror
                 baseResolved = true
                 println("[KKiste] base=$mirror")
                 return mainUrl
             }
+            println("[KKiste] $mirror liefert keine Detail-Links")
         }
         baseResolved = true
         println("[KKiste] no working mirror, fallback=$mainUrl")
@@ -92,7 +97,7 @@ open class KkisteProvider : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         ensureBase()
         val url = if (page <= 1) "$mainUrl/" else "$mainUrl/page/$page/"
-        val doc = runCatching { app.get(url, referer = "$mainUrl/").document }.getOrNull()
+        val doc = Requests.doc(url, referer = "$mainUrl/")
             ?: return newHomePageResponse(request.name, emptyList())
         return newHomePageResponse(request.name, parseListing(doc))
     }
@@ -150,19 +155,19 @@ open class KkisteProvider : MainAPI() {
     // ------------------------------------------------------------------
 
     override suspend fun search(query: String): List<SearchResponse> {
-        ensureBase()
+        val base = ensureBase()
         // KKiste nutzt ein POST-Formular (do/subaction/story) auf die Startseite.
-        val doc = runCatching {
-            app.post(
-                "$mainUrl/",
-                data = mapOf(
-                    "do" to "search",
-                    "subaction" to "search",
-                    "story" to query,
-                ),
-                referer = "$mainUrl/",
-            ).document
-        }.getOrNull() ?: return emptyList()
+        val doc = Requests.postDoc(
+            "$base/",
+            data = mapOf(
+                "do" to "search",
+                "subaction" to "search",
+                "story" to query,
+            ),
+            referer = "$base/",
+        ) ?: throw ErrorLoadingException(
+            "[KKiste] Suche fehlgeschlagen: $base nicht erreichbar"
+        )
 
         return parseListing(doc)
     }
@@ -172,8 +177,7 @@ open class KkisteProvider : MainAPI() {
     // ------------------------------------------------------------------
 
     override suspend fun load(url: String): LoadResponse? {
-        val doc = runCatching { app.get(url, referer = "$mainUrl/").document }.getOrNull()
-            ?: return null
+        val doc = Requests.doc(url, referer = "$mainUrl/") ?: return null
 
         val title = doc.selectFirst("article h1, h1")?.text()?.trim().orEmpty()
             .ifEmpty { doc.title() }
@@ -224,8 +228,7 @@ open class KkisteProvider : MainAPI() {
         val pageUrl = data.substringBefore("#")
         val idx = data.substringAfter("#idx=", "").toIntOrNull()
 
-        val doc = runCatching { app.get(pageUrl, referer = "$mainUrl/").document }.getOrNull()
-            ?: return false
+        val doc = Requests.doc(pageUrl, referer = "$mainUrl/") ?: return false
         val sources = collectStreamSources(doc, pageUrl)
 
         val selected = when {

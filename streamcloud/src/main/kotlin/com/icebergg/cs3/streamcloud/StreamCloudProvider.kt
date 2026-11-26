@@ -1,10 +1,14 @@
 package com.icebergg.cs3.streamcloud
 
+import com.icebergg.cs3.shared.HosterResolver
+import com.icebergg.cs3.shared.Requests
+
 import com.icebergg.cs3.shared.DevideoSrc
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.LoadResponse.Companion.addImdbId
+import com.lagradost.cloudstream3.ErrorLoadingException
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.SearchResponse
@@ -61,15 +65,14 @@ open class StreamCloudProvider : MainAPI() {
     private suspend fun ensureBase(): String {
         if (baseResolved) return mainUrl
         for (mirror in MIRRORS) {
-            val ok = runCatching {
-                app.get("$mirror/filme").text.contains("/filme/")
-            }.getOrDefault(false)
-            if (ok) {
+            val html = Requests.text("$mirror/filme")
+            if (html != null && html.contains("/filme/")) {
                 mainUrl = mirror
                 baseResolved = true
                 println("[StreamCloud] base=$mirror")
                 return mainUrl
             }
+            println("[StreamCloud] $mirror liefert keine Film-Liste")
         }
         baseResolved = true
         println("[StreamCloud] no mirror reachable, fallback=$mainUrl")
@@ -79,7 +82,7 @@ open class StreamCloudProvider : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         ensureBase()
         val url = if (page <= 1) "$mainUrl${request.data}" else "$mainUrl${request.data}?page=$page"
-        val doc = runCatching { app.get(url, referer = "$mainUrl/").document }.getOrNull()
+        val doc = Requests.doc(url, referer = "$mainUrl/")
             ?: return newHomePageResponse(request.name, emptyList())
 
         val items = doc.select("a[href*='/filme/']").mapNotNull { a ->
@@ -107,9 +110,10 @@ open class StreamCloudProvider : MainAPI() {
     override suspend fun search(query: String): List<SearchResponse> {
         ensureBase()
         val encoded = URLEncoder.encode(query, "UTF-8")
-        val doc = runCatching {
-            app.get("$mainUrl/suche?q=$encoded", referer = "$mainUrl/").document
-        }.getOrNull() ?: return emptyList()
+        val doc = Requests.doc("$mainUrl/suche?q=$encoded", referer = "$mainUrl/")
+            ?: throw ErrorLoadingException(
+                "[StreamCloud] Suche fehlgeschlagen: $mainUrl nicht erreichbar"
+            )
 
         val results = mutableListOf<SearchResponse>()
         val seen = HashSet<String>()

@@ -1,5 +1,10 @@
 // Versionsnummer des Plugins als Ganzzahl.
-version = 2
+version = 3
+
+// Gemeinsame Quellen (HosterResolver/DevideoSrc) mit den anderen Modulen teilen.
+android {
+    sourceSets["main"].java.srcDir(rootProject.file("shared/src/main/kotlin"))
+}
 
 cloudstream {
     language = "de"
@@ -14,7 +19,8 @@ cloudstream {
      * 3: Nur Beta
      */
     status = 1
-    tvTypes = listOf("Anime", "AnimeMovies")
+    // Gueltige TvType-Werte laut CloudStream-Doku: Anime, AnimeMovie, TvSeries, ...
+    tvTypes = listOf("Anime", "AnimeMovie")
 
     iconUrl = "https://www.google.com/s2/favicons?domain=https://aniworld.to&sz=%size%"
 }

@@ -1,5 +1,10 @@
 // Versionsnummer des Plugins als Ganzzahl.
-version = 5
+version = 6
+
+// Gemeinsame Quellen (HosterResolver/DevideoSrc) mit den anderen Modulen teilen.
+android {
+    sourceSets["main"].java.srcDir(rootProject.file("shared/src/main/kotlin"))
+}
 
 cloudstream {
     language = "de"

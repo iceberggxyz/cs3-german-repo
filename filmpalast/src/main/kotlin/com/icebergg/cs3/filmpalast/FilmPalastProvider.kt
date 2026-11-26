@@ -1,9 +1,13 @@
 package com.icebergg.cs3.filmpalast
 
+import com.icebergg.cs3.shared.HosterResolver
+import com.icebergg.cs3.shared.Requests
+
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.LoadResponse.Companion.addImdbId
+import com.lagradost.cloudstream3.ErrorLoadingException
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.SearchResponse
@@ -63,13 +67,14 @@ open class FilmPalast : MainAPI() {
     private suspend fun ensureBase(): String {
         if (baseResolved) return mainUrl
         for (mirror in MIRRORS) {
-            val html = runCatching { app.get("$mirror/").text }.getOrNull() ?: continue
+            val html = Requests.text("$mirror/") ?: continue
             if (html.contains("/stream/") && html.contains("article")) {
                 mainUrl = mirror
                 baseResolved = true
                 println("[Filmpalast] base=$mirror")
                 return mainUrl
             }
+            println("[Filmpalast] $mirror liefert keine Stream-Liste")
         }
         baseResolved = true
         println("[Filmpalast] no working mirror, fallback=$mainUrl")
@@ -79,7 +84,7 @@ open class FilmPalast : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         ensureBase()
         val url = if (page <= 1) "$mainUrl/" else "$mainUrl/page/$page"
-        val doc = runCatching { app.get(url, referer = "$mainUrl/").document }.getOrNull()
+        val doc = Requests.doc(url, referer = "$mainUrl/")
             ?: return newHomePageResponse(request.name, emptyList())
         return newHomePageResponse(request.name, parseCards(doc))
     }
@@ -87,16 +92,15 @@ open class FilmPalast : MainAPI() {
     override suspend fun search(query: String): List<SearchResponse> {
         ensureBase()
         val encoded = URLEncoder.encode(query, "UTF-8")
-        val doc = runCatching {
-            app.get("$mainUrl/search/title/$encoded", referer = "$mainUrl/").document
-        }.getOrNull() ?: return emptyList()
+        val doc = Requests.doc("$mainUrl/search/title/$encoded", referer = "$mainUrl/")
+            ?: throw ErrorLoadingException("[Filmpalast] Suche fehlgeschlagen: $mainUrl nicht erreichbar")
         return parseCards(doc)
     }
 
     override suspend fun load(url: String): LoadResponse? {
         ensureBase()
-        val doc = runCatching { app.get(url, referer = "$mainUrl/").document }.getOrNull()
-            ?: return null
+        val doc = Requests.doc(url, referer = "$mainUrl/")
+            ?: throw ErrorLoadingException("[Filmpalast] Detailseite nicht erreichbar: $url")
 
         val rawTitle = doc.selectFirst("h2.bgDark")?.text()?.trim().orEmpty()
             .ifEmpty { doc.selectFirst("h1")?.text()?.trim().orEmpty() }

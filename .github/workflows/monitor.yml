@@ -17,46 +17,91 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Prueft nicht nur "HTTP 200", sondern ob ein provider-spezifischer Marker
+      # im HTML steht. Eine Strukturaenderung der Seite faellt damit auf, bevor
+      # der Provider im Betrieb stillschweigend leer bleibt.
       - name: Probe sources
         id: probe
         run: |
           python3 - <<'PY' >> "$GITHUB_OUTPUT"
-          import urllib.request, ssl, json
+          import http.cookiejar
+          import ssl
+          import urllib.request
 
-          sources = {
-              "AniWorld":   "https://aniworld.to/",
-              "Filmpalast": "https://filmpalast.to/",
-              "KKiste":     "https://kkiste-io.ink/",
-              "s.to":       "https://serienstream.si/",
-              "StreamCloud":"https://streamcloud.date/",
-              "Kinox":      "https://kinox.to/",
-              "MegaKino":   "https://megakino.vip/",
-          }
+          ua = (
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+              "(KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+          )
 
-          ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
-          ctx = ssl.create_default_context()
-          ctx.check_hostname = False
-          ctx.verify_mode = ssl.CERT_NONE
+          # Einige Quellen haben abgelaufene oder falsch verkettete Zertifikate.
+          # Fuer eine reine Erreichbarkeitspruefung ist das unkritisch.
+          ctx = ssl._create_unverified_context()
+
+          # name, url, marker, expected_down
+          sources = [
+              ("AniWorld",        "https://aniworld.to/",                          "carousel",        False),
+              ("Filmpalast",      "https://filmpalast.to/",                        "article",         False),
+              ("KKiste",          "https://kkiste-io.ink/",                        "<article",        False),
+              ("KKiste-Mirror",   "https://kkiste-io.com/",                        "<article",        False),
+              ("s.to",            "https://serienstream.si/",                      "/serie/",         False),
+              ("StreamCloud",     "https://streamcloud.date/filme",                "/filme/",         False),
+              ("1MegaKino",       "https://1megakino.cc/kinofilme-online/",        "data-link",       False),
+              ("Kinox",           "https://kinox.to/",                             "",                True),
+          ]
+
+          def fetch(url, opener=None):
+              request = urllib.request.Request(url, headers={"User-Agent": ua})
+              if opener is not None:
+                  with opener.open(request, timeout=25) as response:
+                      return response.status, response.read(400_000).decode("utf-8", "ignore")
+              with urllib.request.urlopen(request, timeout=25, context=ctx) as response:
+                  return response.status, response.read(400_000).decode("utf-8", "ignore")
+
+          # MegaKino (megakino29.com) schuetzt Seiten mit einem yg_token-Cookie.
+          # Ohne den Handshake liefert der Server nur ein 243-Byte-Stub.
+          mega_status, mega_body = 0, ""
+          try:
+              jar = http.cookiejar.CookieJar()
+              opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+              fetch("https://megakino29.com/index.php?yg=token", opener)
+              mega_status, mega_body = fetch("https://megakino29.com/films/", opener)
+          except Exception as error:  # noqa: BLE001 - Report statt Abbruch
+              mega_body = f"ERR {type(error).__name__}"
 
           rows = []
           down = []
-          for name, url in sources.items():
-              try:
-                  req = urllib.request.Request(url, headers={"User-Agent": ua})
-                  with urllib.request.urlopen(req, timeout=25, context=ctx) as r:
-                      body = r.read(400_000).decode("utf-8", "ignore")
-                      status = r.status
-                      ok = status == 200 and len(body) > 5000
-                      rows.append(f"| {name} | {status} | {len(body)} | {'ok' if ok else 'verdaechtig'} |")
-                      if not ok:
-                          down.append(name)
-              except Exception as e:
-                  rows.append(f"| {name} | ERR | 0 | {type(e).__name__} |")
-                  down.append(name)
 
-          with open("monitor-report.md", "w") as f:
-              f.write("| Quelle | Status | Bytes | Bewertung |\n|---|---|---|---|\n")
-              f.write("\n".join(rows) + "\n")
+          def evaluate(name, status, body, marker, expected_down):
+              if body.startswith("ERR "):
+                  ok = False
+                  detail = body
+              else:
+                  ok = status == 200 and (marker == "" or marker in body)
+                  detail = f"{len(body)} Bytes" + ("" if marker == "" else f", Marker `{marker}`")
+              if expected_down:
+                  verdict = "erwartet down" if not ok else "wieder erreichbar"
+              else:
+                  verdict = "ok" if ok else "verdaechtig"
+                  if not ok:
+                      down.append(name)
+              rows.append(f"| {name} | {status} | {detail} | {verdict} |")
+
+          for name, url, marker, expected_down in sources:
+              try:
+                  status, body = fetch(url)
+                  evaluate(name, status, body, marker, expected_down)
+              except Exception as error:  # noqa: BLE001
+                  evaluate(name, "ERR", f"ERR {type(error).__name__}", marker, expected_down)
+
+          # MegaKino mit Token-Handshake
+          if mega_body.startswith("ERR "):
+              evaluate("MegaKino", "ERR", mega_body, "poster grid-item", False)
+          else:
+              evaluate("MegaKino", mega_status, mega_body, "poster grid-item", False)
+
+          with open("monitor-report.md", "w") as handle:
+              handle.write("| Quelle | Status | Detail | Bewertung |\n|---|---|---|---|\n")
+              handle.write("\n".join(rows) + "\n")
 
           print("down=" + (",".join(down) if down else "none"))
           PY
@@ -71,13 +116,28 @@ jobs:
           DOWN: ${{ steps.probe.outputs.down }}
         run: |
           title="Quellen nicht erreichbar: ${DOWN}"
-          # Doppelte Issues vermeiden: nur anlegen, wenn kein offenes Issue mit gleichem Titel existiert.
           existing=$(gh issue list --state open --search "${DOWN} in:title" --json title --jq 'length')
           if [ "$existing" = "0" ]; then
             gh issue create --title "$title" --body-file monitor-report.md
           else
             echo "Offenes Issue existiert bereits."
           fi
+
+      # Erholung dokumentieren: sobald keine Quelle mehr ausfaellt, werden die
+      # offenen Ausfall-Issues geschlossen, statt ewig stehen zu bleiben.
+      - name: Close issues when all sources recovered
+        if: steps.probe.outputs.down == 'none'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          numbers=$(gh issue list --state open --search "Quellen nicht erreichbar in:title" --json number --jq '.[].number')
+          if [ -z "$numbers" ]; then
+            echo "Keine offenen Ausfall-Issues."
+            exit 0
+          fi
+          for number in $numbers; do
+            gh issue close "$number" --comment "Alle Quellen wieder erreichbar (Lauf vom $(date -u +%Y-%m-%d))."
+          done
 
       - name: Upload report
         if: always()

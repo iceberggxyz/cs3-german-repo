@@ -1,12 +1,14 @@
 package com.icebergg.cs3.megakino
 
 import com.icebergg.cs3.shared.DevideoSrc
+import com.icebergg.cs3.shared.HosterResolver
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageList
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.LoadResponse.Companion.addImdbId
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
+import com.lagradost.cloudstream3.ErrorLoadingException
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.SearchQuality
@@ -239,18 +241,23 @@ open class Megakino : MainAPI() {
                 // Die Suche erwartet das Wort unkodiert; ApiClient kodiert selbst.
                 data = mapOf("do" to "search", "subaction" to "search", "story" to query),
                 cookies = cookies,
+                cacheTime = 0,
             ).document
-        }.getOrNull() ?: return emptyList()
+        }.getOrNull() ?: throw ErrorLoadingException(
+            "[MegaKino] Suche fehlgeschlagen: $baseUrl nicht erreichbar"
+        )
 
         return parseCards(document)
     }
 
     override suspend fun load(url: String): LoadResponse? {
         val baseUrl = session().second
-        val document = pageOf(url) ?: return null
+        val document = pageOf(url)
+            ?: throw ErrorLoadingException("[MegaKino] Detailseite nicht erreichbar: $url")
 
         val title = document.selectFirst("h1, article h2")?.text()?.trim()
-            ?.takeIf { it.isNotBlank() } ?: return null
+            ?.takeIf { it.isNotBlank() }
+            ?: throw ErrorLoadingException("[MegaKino] Titel nicht gefunden: $url")
 
         val playerHtml = document.select("div.pmovie__player").html()
         val poster = posterOf(document, baseUrl)

@@ -1,5 +1,5 @@
 // Versionsnummer des Plugins als Ganzzahl.
-version = 10
+version = 11
 
 // Gemeinsame Quellen (DevideoSrc) mit sto teilen, statt zu kopieren.
 android {

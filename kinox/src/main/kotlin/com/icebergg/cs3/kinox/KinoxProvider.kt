@@ -2,6 +2,7 @@ package com.icebergg.cs3.kinox
 
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.LoadResponse
+import com.lagradost.cloudstream3.ErrorLoadingException
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.SubtitleFile
@@ -96,7 +97,9 @@ open class KinoxProvider : MainAPI() {
         val encoded = URLEncoder.encode(query, "UTF-8")
         val doc = runCatching {
             app.get("$mainUrl$SEARCH_PATH$encoded", referer = "$mainUrl/").document
-        }.getOrNull() ?: return emptyList()
+        }.getOrNull() ?: throw ErrorLoadingException(
+            "[Kinox] Suche fehlgeschlagen: $mainUrl nicht erreichbar"
+        )
 
         val results = mutableListOf<SearchResponse>()
         val seen = HashSet<String>()

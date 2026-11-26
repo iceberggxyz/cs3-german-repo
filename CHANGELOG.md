@@ -4,6 +4,25 @@ Alle nennenswerten Änderungen an diesem Repository.
 
 ## Unveröffentlicht
 
+- **Manifest-Fehler behoben**: `aniworld` nutzte `tvTypes = "AnimeMovies"` und
+  `sto` `"Series"` – beides sind keine gültigen `TvType`-Werte (richtig:
+  `AnimeMovie`, `TvSeries`). Die Plugins waren damit keinem Typ-Filter zuordenbar.
+- **`HosterResolver` zentralisiert**: lag sechsmal als Kopie in den Modulen, jetzt
+  einmal in `shared/` und per Gradle-Source-Set in allen sechs Modulen eingebunden.
+- **`shared/Requests.kt`**: gemeinsamer Netzwerk-Layer mit `USER_AGENT`-Header,
+  deaktiviertem Antwort-Cache und einem Retry bei 403/429/503.
+- **Fehler statt leerer Listen**: `search` und `load` werfen bei nicht erreichbarer
+  Quelle `ErrorLoadingException` mit Provider-Präfix. „Nichts gefunden“ und
+  „Quelle kaputt“ sind damit unterscheidbar. `getMainPage` bleibt bewusst defensiv.
+- **Monitor** prüft jetzt die real genutzten Domains (u. a. `megakino29.com`,
+  `1megakino.cc`, `kkiste-io.com`), inklusive Marker-Prüfung im HTML und
+  Token-Handshake für MegaKino. Offene Ausfall-Issues werden bei Erholung
+  automatisch geschlossen.
+- **CI**: Gradle-Cache aktiviert und ein Hash-Gegencheck zwischen `plugins.json`
+  und den `.cs3`-Dateien ergänzt (verhindert `Extension hash mismatch`).
+- **Smoke-Test** deckt MegaKino (Start + Detail, mit Token-Handshake), die
+  KKiste-POST-Suche und eine AniWorld-Detailseite ab.
+- `repo.json`-Beschreibung nennt nicht mehr das entfernte Burning Series.
 - README: **Google** als empfohlenen DoH-Resolver dokumentiert. Cloudflare löst
   `kkiste-io.ink` nicht auf – dort greift der DoH-Resolver, nicht der Provider.
   Domain-Liste um `kkiste-io.ink` und `megakino29.com` erweitert, plus Hinweis

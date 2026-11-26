@@ -1,10 +1,13 @@
 package com.icebergg.cs3.aniworld
 
+import com.icebergg.cs3.shared.HosterResolver
+
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.HomePageList
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
+import com.lagradost.cloudstream3.ErrorLoadingException
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.SearchResponse
@@ -97,9 +100,14 @@ open class AniworldProvider : MainAPI() {
                     "x-requested-with" to "XMLHttpRequest"
                 )
             )
-        }.getOrNull() ?: return emptyList()
+        }.getOrNull() ?: throw ErrorLoadingException(
+            "[AniWorld] Suche fehlgeschlagen: $mainUrl nicht erreichbar"
+        )
 
-        val items = runCatching { resp.parsed<SearchResp>() }.getOrNull() ?: return emptyList()
+        // Kein Treffer-Array heisst: Ajax-Endpunkt hat sich geaendert - das ist ein Fehler,
+        // keine leere Trefferliste.
+        val items = runCatching { resp.parsed<SearchResp>() }.getOrNull()
+            ?: throw ErrorLoadingException("[AniWorld] Antwort der Suche nicht lesbar")
         return items.filter {
             !it.link.contains("episode-") && it.link.contains("/stream")
         }.map {

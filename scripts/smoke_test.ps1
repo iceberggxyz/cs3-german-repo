@@ -77,6 +77,92 @@ function Test-Source {
     }
 }
 
+# Ergebnis erfassen (gemeinsam fuer die spezialisierten Pruefungen unten).
+function Record {
+    param(
+        [string]$Name,
+        [string]$Status,
+        [string]$Detail,
+        [string]$Url
+    )
+    if ($Status -ne 'ok' -and $Status -notlike 'skip*') { $script:failures++ }
+    $script:results += [pscustomobject]@{
+        Quelle = $Name
+        Status = $Status
+        Detail = $Detail
+        URL    = $Url
+    }
+}
+
+<#
+    MegaKino schuetzt jede Seite mit einem yg_token-Cookie. Ohne Handshake
+    liefert der Server nur ein 243-Byte-Stub - genau der Zustand, in dem die
+    Startseite frueher leer blieb. Diese Pruefung bildet den Provider nach.
+#>
+function Test-SourceWithSession {
+    param(
+        [string]$Name,
+        [string]$TokenUrl,
+        [string]$Url,
+        [string]$Marker,
+        [string]$FixtureName
+    )
+
+    $status = 'FAIL'
+    $detail = ''
+    try {
+        $session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+        Invoke-WebRequest -Uri $TokenUrl -WebSession $session -UseBasicParsing -TimeoutSec 30 `
+            -Headers @{ 'User-Agent' = $ua } | Out-Null
+
+        $r = Invoke-WebRequest -Uri $Url -WebSession $session -UseBasicParsing -TimeoutSec 30 `
+            -Headers @{ 'User-Agent' = $ua }
+        $body = $r.Content
+        $status = if ($body -match $Marker) { 'ok' } else { 'MARKER FEHLT' }
+        $detail = "HTTP $($r.StatusCode), $($body.Length) Bytes"
+        if ($SaveFixtures -and $FixtureName) {
+            Set-Content -Path (Join-Path $fixtureDir $FixtureName) -Value $body -Encoding UTF8
+            $detail += ", Fixture gespeichert"
+        }
+    } catch {
+        $detail = "ERR - $($_.Exception.Message)"
+    }
+
+    Record -Name $Name -Status $status -Detail $detail -Url $Url
+}
+
+<#
+    Suche per POST (DLE-Formular). Deckt die Suche ab, die ohne DoH bzw. ohne
+    passenden User-Agent als leere Liste zurueckkam.
+#>
+function Test-SourcePost {
+    param(
+        [string]$Name,
+        [string]$Url,
+        [hashtable]$Body,
+        [string]$Marker,
+        [string]$FixtureName
+    )
+
+    $status = 'FAIL'
+    $detail = ''
+    try {
+        $r = Invoke-WebRequest -Uri $Url -Method Post -Body $Body -UseBasicParsing -TimeoutSec 30 `
+            -Headers @{ 'User-Agent' = $ua }
+        $content = $r.Content
+        $status = if ($content -match $Marker) { 'ok' } else { 'MARKER FEHLT' }
+        $detail = "HTTP $($r.StatusCode), $($content.Length) Bytes"
+        if ($SaveFixtures -and $FixtureName) {
+            Set-Content -Path (Join-Path $fixtureDir $FixtureName) -Value $content -Encoding UTF8
+            $detail += ", Fixture gespeichert"
+        }
+    } catch {
+        $detail = "ERR - $($_.Exception.Message)"
+    }
+
+    Record -Name $Name -Status $status -Detail $detail -Url $Url
+}
+
 # --- Startseiten -----------------------------------------------------------
 Test-Source -Name 'AniWorld'     -Url 'https://aniworld.to/'            -Marker 'carousel'          -FixtureName 'aniworld-start.html'
 Test-Source -Name 'Filmpalast'   -Url 'https://filmpalast.to/'          -Marker 'article class="liste' -FixtureName 'filmpalast-start.html' -DnsBlockedInDe
@@ -88,6 +174,21 @@ Test-Source -Name 'StreamCloud'  -Url 'https://streamcloud.date/filme'  -Marker 
 Test-Source -Name 'Filmpalast-Suche' -Url 'https://filmpalast.to/search/title/godzilla'      -Marker '/stream/'   -FixtureName 'filmpalast-suche.html' -DnsBlockedInDe
 Test-Source -Name 's.to-Suche'       -Url 'https://serienstream.si/suche?q=breaking'         -Marker '/serie/'    -FixtureName 'sto-suche.html'
 Test-Source -Name 'StreamCloud-Suche'-Url 'https://streamcloud.date/suche?q=breaking'        -Marker '/serie/'    -FixtureName 'streamcloud-suche.html'
+
+# --- MegaKino (Token-Handshake wie im Provider) -----------------------------
+Test-SourceWithSession -Name 'MegaKino-Start' -TokenUrl 'https://megakino29.com/index.php?yg=token' `
+    -Url 'https://megakino29.com/films/' -Marker 'poster grid-item' -FixtureName 'megakino-films.html'
+Test-SourceWithSession -Name 'MegaKino-Detail' -TokenUrl 'https://megakino29.com/index.php?yg=token' `
+    -Url 'https://megakino29.com/films/6667-hokum.html' -Marker 'film_main'
+# Katalogseite des Mirrors: Detail-Links enden auf "-stream-deutsch".
+Test-Source -Name 'MegaKino-Mirror' -Url 'https://1megakino.cc/kinofilme-online/' -Marker '-stream-deutsch'
+
+# --- Detailseiten und POST-Suche -------------------------------------------
+Test-Source -Name 'AniWorld-Detail' -Url 'https://aniworld.to/anime/stream/one-piece' -Marker '/staffel-' -FixtureName 'aniworld-detail.html'
+# "hokum" liefert verlaesslich genau einen Treffer (verifiziert 24.11.2026).
+Test-SourcePost -Name 'KKiste-Suche' -Url 'https://kkiste-io.ink/' `
+    -Body @{ do = 'search'; subaction = 'search'; story = 'hokum' } `
+    -Marker 'hokum' -FixtureName 'kkiste-suche.html'
 
 # --- Ausgabe ---------------------------------------------------------------
 $results | Format-Table -AutoSize | Out-String -Width 200 | Write-Output
