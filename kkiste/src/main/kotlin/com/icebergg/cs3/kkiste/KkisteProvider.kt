@@ -23,6 +23,8 @@ import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.newMovieSearchResponse
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.newTvSeriesSearchResponse
+import com.lagradost.cloudstream3.utils.AppUtils.parseJson
+import com.lagradost.cloudstream3.utils.AppUtils.toJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.loadExtractor
 import org.jsoup.nodes.Document
@@ -176,6 +178,10 @@ open class KkisteProvider : MainAPI() {
     // Detailseite
     // ------------------------------------------------------------------
 
+    /** Serien-Titel ohne Staffelangabe, z. B. "Serie - Staffel 2" -> "Serie". */
+    private fun baseNameOf(raw: String): String =
+        raw.replace(Regex("""(?i)\s*[-:]?\s*Staffel\s*\d+.*$"""), "").trim().ifEmpty { raw.trim() }
+
     override suspend fun load(url: String): LoadResponse? {
         val doc = Requests.doc(url, referer = "$mainUrl/") ?: return null
 
@@ -188,29 +194,76 @@ open class KkisteProvider : MainAPI() {
         val plot = doc.selectFirst("article p, .fdesc, .full-text")?.text()?.trim()
         val imdb = Regex("""imdb\.com/title/(tt\d+)""").find(doc.html())?.groupValues?.get(1)
 
-        val sources = collectStreamSources(doc, url)
-        val isSeries = REGEX_STAFFEL.containsMatchIn(title) && sources.size > 1
+        val seasonEpNodes = doc.select("li[id^=serie-]")
+        val isSeries = REGEX_STAFFEL.containsMatchIn(title) || seasonEpNodes.isNotEmpty()
 
-        return if (isSeries) {
-            val season = REGEX_STAFFEL.find(title)?.groupValues?.get(1)?.toIntOrNull() ?: 1
-            val episodes = sources.mapIndexed { index, _ ->
-                newEpisode("$url#idx=$index") {
-                    this.name = "Episode ${index + 1}"
-                    this.season = season
-                    this.episode = index + 1
+        if (!isSeries) {
+            return newMovieLoadResponse(title, url, TvType.Movie, url) {
+                this.posterUrl = poster
+                this.plot = plot
+                if (imdb != null) addImdbId(imdb)
+            }
+        }
+
+        // KKiste führt jede Staffel als eigene Seite. Deshalb die aktuelle Seite
+        // nehmen und über die Suche nach dem Basisnamen die übrigen Staffeln
+        // nachladen, damit alle Staffeln in einem Eintrag erscheinen.
+        val baseName = baseNameOf(title)
+        val seasonDocs = LinkedHashMap<Int, Document>()
+        REGEX_STAFFEL.find(title)?.groupValues?.getOrNull(1)?.toIntOrNull()?.let { seasonDocs[it] = doc }
+
+        if (baseName.isNotBlank()) {
+            val searchDoc = runCatching {
+                Requests.postDoc(
+                    "$mainUrl/",
+                    data = mapOf(
+                        "do" to "search", "subaction" to "search", "story" to baseName,
+                    ),
+                    referer = "$mainUrl/",
+                )
+            }.getOrNull()
+            if (searchDoc != null) {
+                for (card in searchDoc.select("article")) {
+                    val a = card.selectFirst("h2 a[href], h3 a[href]") ?: continue
+                    val cardTitle = a.text().trim()
+                    if (!baseNameOf(cardTitle).equals(baseName, ignoreCase = true)) continue
+                    val season = REGEX_STAFFEL.find(cardTitle)
+                        ?.groupValues?.getOrNull(1)?.toIntOrNull() ?: continue
+                    if (seasonDocs.containsKey(season)) continue
+                    val link = fixUrl(a.attr("href"))
+                    if (link == url) continue
+                    val sd = runCatching { Requests.doc(link, referer = "$mainUrl/") }.getOrNull()
+                        ?: continue
+                    seasonDocs[season] = sd
                 }
             }
-            newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
-                this.posterUrl = poster
-                this.plot = plot
-                if (imdb != null) addImdbId(imdb)
+        }
+
+        val episodes = mutableListOf<Episode>()
+        val seen = HashSet<Pair<Int, Int>>()
+        for ((season, seasonDoc) in seasonDocs) {
+            for (li in seasonDoc.select("li[id^=serie-]")) {
+                val epNumber = li.attr("id").substringAfterLast("_").toIntOrNull() ?: continue
+                val hosters = li.select("[data-link]").mapNotNull { el ->
+                    el.attr("data-link").trim()
+                        .takeIf { it.startsWith("http://") || it.startsWith("https://") }
+                }.distinct()
+                if (hosters.isEmpty()) continue
+                if (!seen.add(season to epNumber)) continue
+                episodes += newEpisode(hosters.toJson()) {
+                    this.season = season
+                    this.episode = epNumber
+                    this.name = "Staffel $season Episode $epNumber"
+                    this.posterUrl = poster
+                }
             }
-        } else {
-            newMovieLoadResponse(title, url, TvType.Movie, url) {
-                this.posterUrl = poster
-                this.plot = plot
-                if (imdb != null) addImdbId(imdb)
-            }
+        }
+        episodes.sortWith(compareBy({ it.season ?: 0 }, { it.episode ?: 0 }))
+
+        return newTvSeriesLoadResponse(baseName.ifBlank { title }, url, TvType.TvSeries, episodes) {
+            this.posterUrl = poster
+            this.plot = plot
+            if (imdb != null) addImdbId(imdb)
         }
     }
 
@@ -224,21 +277,23 @@ open class KkisteProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit,
     ): Boolean {
-        // `data` kann ein Fragment `#idx=N` tragen (Serien-Episoden).
-        val pageUrl = data.substringBefore("#")
-        val idx = data.substringAfter("#idx=", "").toIntOrNull()
-
-        val doc = Requests.doc(pageUrl, referer = "$mainUrl/") ?: return false
-        val sources = collectStreamSources(doc, pageUrl)
-
-        val selected = when {
-            idx != null -> listOfNotNull(sources.getOrNull(idx))
-            else -> sources
+        // Serien-Episode: `data` ist die JSON-Liste der Hoster dieser Episode.
+        val hosters = runCatching { parseJson<List<String>>(data.trim()) }.getOrNull()
+        if (hosters != null) {
+            var found = false
+            for (hoster in hosters) {
+                if (HosterResolver.resolve(hoster, mainUrl, subtitleCallback) { callback.invoke(it) }) {
+                    found = true
+                }
+            }
+            return found
         }
 
+        // Film (oder Fallback): `data` ist die Detailseite.
+        val pageUrl = data.substringBefore("#")
+        val doc = Requests.doc(pageUrl, referer = "$mainUrl/") ?: return false
         var found = false
-        for (source in selected) {
-            // HosterResolver loest VOE-Kurzlinks und Vorschalt-Seiten (iframe) auf.
+        for (source in collectStreamSources(doc, pageUrl)) {
             if (HosterResolver.resolve(source.url, pageUrl, subtitleCallback) { callback.invoke(it) }) {
                 found = true
             }

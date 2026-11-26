@@ -56,7 +56,8 @@ open class FilmPalast : MainAPI() {
         "" to "Neu auf Filmpalast",
     )
 
-    private val seriesRegex = Regex("""-s(\d+)e(\d+)""", RegexOption.IGNORE_CASE)
+    // Der Bindestrich ist optional: manche Staffel-Links heißen "outlanders03e01".
+    private val seriesRegex = Regex("""-?s(\d+)e(\d+)""", RegexOption.IGNORE_CASE)
     private val seriesSuffixRegex = Regex("""(?i)[\s\-]*s\d+e\d+$""")
 
     private var baseResolved = false
@@ -127,15 +128,16 @@ open class FilmPalast : MainAPI() {
 
         // Serientitel ohne Episoden-Suffix ("Percy Jackson … S03E01" -> "Percy Jackson …").
         val title = rawTitle.replace(seriesSuffixRegex, "").trim().ifEmpty { rawTitle }
-        val baseSlug = slug.replace(Regex("(?i)-s\\d+e\\d+$"), "")
+        val baseSlug = slug.replace(Regex("(?i)-?s\\d+e\\d+$"), "")
 
         val episodes = mutableListOf<Episode>()
         val seen = HashSet<String>()
 
-        // 1) Verlinkte Episoden aus dem Staffel-Bereich (enthält i. d. R. alle Folgen, die
-        //    ohne JS verfügbar sind).
-        val container = doc.selectFirst("div#staffelWrapper") ?: doc.selectFirst("div.streamStaffelWrapper")
-        val linkSource = container?.select("a[href*='/stream/']") ?: doc.select("a[href*='/stream/']")
+        // 1) Alle verlinkten Episoden. Die Detailseite listet sämtliche Staffeln als
+        //    /stream/…-Links im HTML (teils ohne Bindestrich, z. B. "outlanders03e01").
+        //    Deshalb das ganze Dokument auswerten, nicht nur den sichtbaren
+        //    Staffel-Container (der nur die aktuelle Staffel enthält).
+        val linkSource = doc.select("a[href*='/stream/']")
         for (a in linkSource) {
             val link = normalize(a.attr("href")) ?: continue
             val linkSlug = link.substringAfterLast("/")
@@ -256,7 +258,7 @@ open class FilmPalast : MainAPI() {
 
             if (m != null) {
                 // Auf Serie reduzieren: ein Treffer pro Serie, nicht pro Episode.
-                val baseSlug = slug.replace(Regex("(?i)-s\\d+e\\d+$"), "")
+                val baseSlug = slug.replace(Regex("(?i)-?s\\d+e\\d+$"), "")
                 if (!seen.add("series:$baseSlug")) continue
                 val seriesTitle = title.replace(seriesSuffixRegex, "").trim().ifEmpty { title }
                 out.add(newTvSeriesSearchResponse(seriesTitle, url, TvType.TvSeries) {

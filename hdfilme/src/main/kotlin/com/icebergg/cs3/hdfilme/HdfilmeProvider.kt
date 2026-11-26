@@ -1,6 +1,7 @@
 package com.icebergg.cs3.hdfilme
 
 import com.icebergg.cs3.shared.DevideoSrc
+import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.MainAPI
@@ -69,6 +70,12 @@ open class Hdfilme : MainAPI() {
             """\\?"season_number\\?"\s*:\s*(\d+)\s*,\s*\\?"episode_number\\?"\s*:\s*(\d+)""" +
                 """(?:,\s*\\?"name\\?"\s*:\s*\\?"([^"\\]*))?"""
         )
+
+        /**
+         * Alle Staffelnummern der Serie: das `stagioni`-Array der Detailseite
+         * listet jede Staffel mit `season_number` (nicht nur die angezeigte).
+         */
+        private val SEASON_NUMBER = Regex("""\\?"season_number\\?"\s*:\s*(\d+)""")
     }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
@@ -147,23 +154,47 @@ open class Hdfilme : MainAPI() {
     ): LoadResponse? {
         val imdb = IMDB.find(html)?.value ?: return null
 
-        val episodes = EPISODE.findAll(html)
-            .mapNotNull { m ->
-                val season = m.groupValues[1].toIntOrNull() ?: return@mapNotNull null
-                val number = m.groupValues[2].toIntOrNull() ?: return@mapNotNull null
+        // Die Detailseite enthält in `episodi` nur die Episoden der angezeigten
+        // (ersten) Staffel. Alle Staffeln stehen im `stagioni`-Array; die
+        // Episoden der übrigen Staffeln liefert `/serie/{slug}/staffel-{n}`.
+        val seasons = SEASON_NUMBER.findAll(html)
+            .mapNotNull { it.groupValues[1].toIntOrNull() }
+            .distinct()
+            .sorted()
+            .toList()
+        if (seasons.isEmpty()) return null
+
+        val episodes = mutableListOf<Episode>()
+        val seen = HashSet<Pair<Int, Int>>()
+
+        fun collect(seasonHtml: String) {
+            for (m in EPISODE.findAll(seasonHtml)) {
+                val season = m.groupValues[1].toIntOrNull() ?: continue
+                val number = m.groupValues[2].toIntOrNull() ?: continue
+                if (!seen.add(season to number)) continue
                 val name = m.groupValues.getOrNull(3)?.takeIf { it.isNotBlank() }
-                newEpisode("$DEV_SERIAL/$imdb/$season/$number") {
+                episodes += newEpisode("$DEV_SERIAL/$imdb/$season/$number") {
                     this.season = season
                     this.episode = number
                     this.name = name ?: "Staffel $season Folge $number"
                     this.posterUrl = poster
                 }
             }
-            .distinctBy { (it.season ?: 0) to (it.episode ?: 0) }
-            .sortedWith(compareBy({ it.season ?: 0 }, { it.episode ?: 0 }))
-            .toList()
+        }
+
+        // Episoden der auf der Detailseite gezeigten Staffel.
+        collect(html)
+
+        // Übrige Staffeln über die jeweilige Staffel-Seite nachladen.
+        for (season in seasons) {
+            if (episodes.any { it.season == season }) continue
+            val seasonHtml = runCatching { app.get("$url/staffel-$season").text }.getOrNull()
+                ?: continue
+            collect(seasonHtml)
+        }
 
         if (episodes.isEmpty()) return null
+        episodes.sortWith(compareBy({ it.season ?: 0 }, { it.episode ?: 0 }))
 
         return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
             this.posterUrl = poster
