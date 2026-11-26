@@ -63,14 +63,18 @@ subprojects {
             targetSdk = 35
         }
 
+        // JVM 11 statt 1.8: die aktuellen CloudStream-Stubs (`classes.jar` aus dem
+        // Release `pre-release`) sind mit JVM-Target 11 gebaut. Mit 1.8 bricht
+        // der Compiler bei Inline-Funktionen aus `DevideoSrc` ab
+        // ("Cannot inline bytecode built with JVM target 11").
         compileOptions {
-            sourceCompatibility = JavaVersion.VERSION_1_8
-            targetCompatibility = JavaVersion.VERSION_1_8
+            sourceCompatibility = JavaVersion.VERSION_11
+            targetCompatibility = JavaVersion.VERSION_11
         }
 
         tasks.withType<KotlinJvmCompile> {
             compilerOptions {
-                jvmTarget.set(JvmTarget.JVM_1_8) // Required
+                jvmTarget.set(JvmTarget.JVM_11)
                 freeCompilerArgs.addAll(
                     "-Xno-call-assertions",
                     "-Xno-param-assertions",
@@ -85,10 +89,11 @@ subprojects {
         val implementation by configurations
 
         // Stubs für alle CloudStream-Klassen (werden NICHT in das Plugin gebündelt).
-        // JitPack liefert die Bibliothek unter com.github.recloudstream:cloudstream;
-        // die frühere Koordinate com.lagradost:cloudstream3:pre-release ist dort
-        // nicht mehr auflösbar (HTTP 404) und ließ den CI-Build scheitern.
-        cloudstream("com.github.recloudstream:cloudstream:4.9.1")
+        // Wichtig: Das CloudStream-Gradle-Plugin ignoriert das Artefakt und lädt
+        // `classes.jar` aus dem GitHub-Release mit DIESEM Versionsnamen. Nur der
+        // Tag `pre-release` stellt `classes.jar` bereit – Releases wie v4.9.1
+        // enthalten ausschließlich die APK.
+        cloudstream("com.lagradost:cloudstream3:pre-release")
 
         // Diese Abhängigkeiten sind optional; es dürfen beliebige der von der
         // App bereitgestellten Bibliotheken verwendet werden:
